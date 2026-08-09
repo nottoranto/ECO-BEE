@@ -2,6 +2,7 @@ services:
   - type: web
     name: eco-bee
     runtime: python
+    plan: starter
     buildCommand: "python3 -m py_compile server.py"
     startCommand: "python3 server.py"
     healthCheckPath: /api/health
