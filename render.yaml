@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: eco-bee
+    runtime: python
+    buildCommand: "python3 -m py_compile server.py"
+    startCommand: "python3 server.py"
+    healthCheckPath: /api/health
+    envVars:
+      - key: ECOBEE_ENV
+        value: production
+      - key: ECOBEE_HOST
+        value: 0.0.0.0
+      - key: ECOBEE_DB
+        value: /var/data/ecobee.db
+      - key: ECOBEE_ADMIN_EMAIL
+        value: admin@ecobee.go.th
+      - key: ECOBEE_ADMIN_PASSWORD
+        generateValue: true
+    disk:
+      name: eco-bee-data
+      mountPath: /var/data
+      sizeGB: 1
