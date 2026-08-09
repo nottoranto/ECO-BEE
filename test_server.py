@@ -112,5 +112,17 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(status,201)
         self.assertEqual(self.request("DELETE",f"/api/org/admins/{created['id']}",token=token)[0],200)
 
+    def test_organization_can_delete_farmer_and_related_data(self):
+        _,farmer=self.request("POST","/api/auth/register",{"phone":"0812345678","password":"farmer-password","name":"เกษตรกรลบ","farm":"ฟาร์มลบ"})
+        _,hive=self.request("POST","/api/hives",{"name":"รังที่จะลบ","species":"cerana","lat":13.5,"lng":99.8},farmer["token"])
+        _,batch=self.request("POST","/api/harvests",{"hive_id":hive["id"],"product":"น้ำผึ้ง","quantity_kg":2},farmer["token"])
+        _,org=self.request("POST","/api/org/auth/login",{"email":"admin@ecobee.go.th","password":"test-admin-password"})
+        self.assertEqual(self.request("DELETE","/api/org/farmers/0812345678",token=org["token"])[0],200)
+        self.assertEqual(self.request("GET","/api/auth/me",token=farmer["token"])[0],401)
+        self.assertEqual(self.request("GET","/api/trace/"+batch["batch_code"])[0],404)
+        _,farmers=self.request("GET","/api/org/farmers",token=org["token"])
+        self.assertFalse(any(x["phone"]=="0812345678" for x in farmers))
+        self.assertEqual(self.request("DELETE","/api/org/farmers/0812345678",token=org["token"])[0],404)
+
 
 if __name__ == "__main__": unittest.main()

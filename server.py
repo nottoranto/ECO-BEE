@@ -93,6 +93,11 @@ def init_db():
           safety INTEGER NOT NULL DEFAULT 0, standard INTEGER NOT NULL DEFAULT 0,
           updated_at INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS org_audit_logs (
+          id INTEGER PRIMARY KEY, admin_id INTEGER NOT NULL,
+          action TEXT NOT NULL, target TEXT NOT NULL, details TEXT NOT NULL DEFAULT '{}',
+          created_at INTEGER NOT NULL
+        );
         """)
         admin_password = os.environ.get("ECOBEE_ADMIN_PASSWORD", "")
         if os.environ.get("ECOBEE_ENV") == "production" and len(admin_password) < 12:
@@ -362,6 +367,33 @@ class API(SimpleHTTPRequestHandler):
     def do_DELETE(self):
         try:
             path=urlparse(self.path).path
+            if path.startswith("/api/org/farmers/"):
+                phone=unquote(path[len("/api/org/farmers/"):]).strip()
+                if not valid_phone(phone):return self.json_response({"error":"invalid_phone"},400)
+                with connect() as db:
+                    actor=self.org_user(db)
+                    if not actor:return self.json_response({"error":"unauthorized"},401)
+                    farmer=db.execute("SELECT id,name,farm,phone FROM users WHERE phone=?",(phone,)).fetchone()
+                    if not farmer:return self.json_response({"error":"not_found"},404)
+                    # Remove legacy/private UI state as well as relational data. Foreign keys
+                    # cascade sessions, hives, harvest lots, movements and verifications.
+                    db.execute("DELETE FROM kv_store WHERE scope='private' AND (key=? OR key=? OR key=?)",
+                               (f"profile_{phone}",f"myHives_{phone}",f"seenAlerts_{phone}"))
+                    for key in ("plants","safetyZones","feedback","agencyEdits"):
+                        row=db.execute("SELECT value FROM kv_store WHERE scope='shared' AND key=?",(key,)).fetchone()
+                        if not row:continue
+                        try:items=json.loads(row["value"])
+                        except (ValueError,TypeError):continue
+                        if not isinstance(items,list):continue
+                        kept=[item for item in items if not (isinstance(item,dict) and phone in {
+                            str(item.get("ownerPhone","")),str(item.get("targetPhone","")),str(item.get("fromPhone",""))})]
+                        if len(kept)!=len(items):
+                            db.execute("UPDATE kv_store SET value=?,updated_at=? WHERE scope='shared' AND key=?",
+                                       (json.dumps(kept,ensure_ascii=False),now_ms(),key))
+                    db.execute("DELETE FROM users WHERE id=?",(farmer["id"],))
+                    db.execute("INSERT INTO org_audit_logs(admin_id,action,target,details,created_at) VALUES(?,?,?,?,?)",
+                               (actor["id"],"delete_farmer",phone,json.dumps({"name":farmer["name"],"farm":farmer["farm"]},ensure_ascii=False),now_ms()))
+                return self.json_response({"ok":True})
             if path.startswith("/api/org/admins/"):
                 admin_id=int(path.rsplit("/",1)[1])
                 with connect() as db:
