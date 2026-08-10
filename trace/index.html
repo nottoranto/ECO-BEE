@@ -14,17 +14,32 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <style>
-  body { font-family:'Prompt',sans-serif; }
+  body { font-family:'Prompt',sans-serif; min-height:100dvh; }
   .font-display { font-family:'Kanit',sans-serif; }
-  #environment-diagram { height:300px; width:100%; background:#fff; position:relative; overflow:hidden; }
+  #environment-diagram { height:clamp(15rem,42vw,23rem); width:100%; background:#fff; position:relative; overflow:hidden; }
   .env-ring { position:absolute; left:50%; top:46%; transform:translate(-50%,-50%); border:1.5px dashed #fcd34d; border-radius:9999px; }
-  .env-node { position:absolute; transform:translate(-50%,-50%); min-width:68px; max-width:92px; text-align:center; }
-  .env-node-icon { width:42px; height:42px; margin:auto; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:20px; border:1px solid #e5e7eb; background:#fff; box-shadow:0 5px 16px rgba(15,23,42,.08); }
+  .env-node { position:absolute; transform:translate(-50%,-50%); min-width:clamp(3.5rem,10vw,4.5rem); max-width:clamp(4.5rem,14vw,6.5rem); text-align:center; }
+  .env-node-icon { width:clamp(2.25rem,7vw,3rem); height:clamp(2.25rem,7vw,3rem); margin:auto; border-radius:clamp(.65rem,2vw,.9rem); display:flex; align-items:center; justify-content:center; font-size:clamp(1rem,3vw,1.35rem); border:1px solid #e5e7eb; background:#fff; box-shadow:0 5px 16px rgba(15,23,42,.08); }
   .live-dot { width:7px; height:7px; border-radius:9999px; background:#10b981; animation: livePulse 1.6s ease-in-out infinite; }
   @keyframes livePulse { 0%,100%{ box-shadow:0 0 0 0 rgba(16,185,129,.55); } 70%{ box-shadow:0 0 0 5px rgba(16,185,129,0); } }
   @keyframes fadeInUp { from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);} }
   .animate-fade-in { animation: fadeInUp .55s cubic-bezier(.16,1,.3,1) both; }
   :focus-visible { outline:2px solid #f59e0b; outline-offset:3px; border-radius:6px; }
+  header>div,main{max-width:min(94vw,64rem)!important;}
+  header>div{height:clamp(3.5rem,7vw,4.5rem)!important;padding-inline:clamp(1rem,3vw,2rem)!important;}
+  main{padding:clamp(1rem,3vw,2rem);gap:clamp(.8rem,2vw,1.5rem);}
+  main>section{padding:clamp(1rem,3vw,2rem)!important;border-radius:clamp(1.1rem,3vw,1.75rem)!important;}
+  input,button{min-width:0;}
+  @media (min-width:768px){
+    #environment-summary{grid-template-columns:repeat(4,minmax(0,1fr));}
+    #farmer-profile>div.grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  }
+  @media (max-width:420px){
+    #trace-search{flex-direction:column;}
+    #trace-search button{width:100%;}
+    #environment-summary{grid-template-columns:minmax(0,1fr);}
+    #farmer-badges{flex-wrap:wrap;}
+  }
   @media (prefers-reduced-motion: reduce){ *,*::before,*::after{ animation-duration:.001ms !important; transition-duration:.001ms !important; } }
 </style>
 </head>
@@ -199,7 +214,7 @@ startLiveClock();
   }
   function renderEnvironment(data){
     const env=data.environment||{},plants=(env.plants||[]).slice(0,6),diagram=document.getElementById('environment-diagram');
-    let html='<div class="env-ring" style="width:230px;height:230px"></div><div class="env-ring" style="width:150px;height:150px;opacity:.55"></div>';
+    let html='<div class="env-ring" style="width:72%;aspect-ratio:1"></div><div class="env-ring" style="width:47%;aspect-ratio:1;opacity:.55"></div>';
     plants.forEach(function(item,index){const plant=PLANT_CATALOG[item.type]||{label:item.type,icon:'🌿'},angle=(-90+(360/Math.max(plants.length,1))*index)*Math.PI/180,x=50+35*Math.cos(angle),y=46+36*Math.sin(angle);html+='<div class="env-node" style="left:'+x+'%;top:'+y+'%"><div class="env-node-icon">'+plant.icon+'</div><p class="text-[10px] font-semibold text-gray-600 mt-1 truncate">'+escapeHtml(plant.label)+' ×'+item.count+'</p></div>';});
     html+='<div class="env-node" style="left:50%;top:46%;z-index:2"><div class="env-node-icon" style="background:#f59e0b;color:white;border-color:#f59e0b"><svg style="width:23px;height:23px" fill="currentColor"><use href="#icon-hive"/></svg></div><p class="text-[10px] font-bold text-amber-700 mt-1">รังต้นทาง</p></div>';
     if(!plants.length)html+='<p class="absolute left-1/2 top-[76%] -translate-x-1/2 text-[10px] text-gray-400 whitespace-nowrap">ยังไม่มีพืชอาหารที่ยืนยัน</p>';
