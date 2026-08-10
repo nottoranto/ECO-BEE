@@ -3,7 +3,7 @@ services:
     name: eco-bee
     runtime: python
     plan: free
-    buildCommand: "python3 -m py_compile server.py"
+    buildCommand: "pip install -r requirements.txt && python3 -m py_compile server.py"
     startCommand: "python3 server.py"
     healthCheckPath: /api/health
     envVars:
@@ -11,8 +11,8 @@ services:
         value: production
       - key: ECOBEE_HOST
         value: 0.0.0.0
-      - key: ECOBEE_DB
-        value: /tmp/ecobee.db
+      - key: DATABASE_URL
+        sync: false
       - key: ECOBEE_ADMIN_EMAIL
         value: admin@ecobee.go.th
       - key: ECOBEE_ADMIN_PASSWORD

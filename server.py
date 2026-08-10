@@ -15,8 +15,16 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except ImportError:  # Local SQLite development does not require PostgreSQL extras.
+    psycopg = None
+    dict_row = None
+
 ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get("ECOBEE_DB", ROOT / "ecobee.db"))
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 PAGE_FILES = {
     "/": ROOT / "farmer" / "index.html",
     "/farmer": ROOT / "farmer" / "index.html",
@@ -32,7 +40,23 @@ FARMER_SHARED_WRITES = {"plants", "safetyZones", "feedback"}
 ORG_SHARED_WRITES = {"plants", "safetyZones", "feedback", "agencyEdits", "parkHives", "plantCatalog"}
 
 
+class PostgresConnection:
+    """Small adapter that keeps the existing qmark SQL portable to psycopg."""
+    def __init__(self, url):
+        self.raw = psycopg.connect(url, row_factory=dict_row)
+        self.raw.execute("SET search_path TO ecobee, public")
+    def __enter__(self):
+        self.raw.__enter__()
+        return self
+    def __exit__(self, kind, value, traceback):return self.raw.__exit__(kind,value,traceback)
+    def execute(self, sql, params=()):return self.raw.execute(sql.replace("?","%s"),params)
+    def executescript(self, sql):return self.raw.execute(sql)
+
+
 def connect():
+    if DATABASE_URL:
+        if psycopg is None:raise RuntimeError("psycopg is required when DATABASE_URL is set")
+        return PostgresConnection(DATABASE_URL)
     db = sqlite3.connect(DB_PATH)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA foreign_keys=ON")
@@ -40,8 +64,10 @@ def connect():
 
 
 def init_db():
+    if os.environ.get("ECOBEE_ENV") == "production" and not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL is required in production")
     with connect() as db:
-        db.executescript("""
+        if not DATABASE_URL:db.executescript("""
         CREATE TABLE IF NOT EXISTS kv_store (
           scope TEXT NOT NULL CHECK(scope IN ('private','shared')),
           key TEXT NOT NULL, value TEXT NOT NULL, updated_at INTEGER NOT NULL,
@@ -287,7 +313,9 @@ class API(SimpleHTTPRequestHandler):
                 data = PAGE_FILES[page_path].read_bytes(); self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8"); self.send_header("Content-Length", str(len(data)))
                 self.end_headers(); self.wfile.write(data); return
-            if path == "/api/health": return self.json_response({"status":"ok","service":"eco-bee","time":now_ms()})
+            if path == "/api/health":
+                with connect() as db:db.execute("SELECT 1").fetchone()
+                return self.json_response({"status":"ok","service":"eco-bee","database":"postgresql" if DATABASE_URL else "sqlite","time":now_ms()})
             if path.startswith("/api/storage/"):
                 _, _, _, scope, key = path.split("/", 4); key = unquote(key)
                 with connect() as db:
@@ -426,9 +454,10 @@ class API(SimpleHTTPRequestHandler):
                 if not valid_text(data.get("name"),2,100) or not valid_text(data.get("farm"),2,150):return self.json_response({"error":"invalid_profile"},400)
                 try:
                     with connect() as db:
-                        cur=db.execute("INSERT INTO users(phone,name,farm,password_hash,created_at) VALUES(?,?,?,?,?)",(data["phone"],data["name"],data["farm"],hash_password(data["password"]),now_ms()))
-                        token=secrets.token_urlsafe(32); db.execute("INSERT INTO sessions VALUES(?,?,?)",(token_digest(token),cur.lastrowid,now_ms()+SESSION_MS))
-                except sqlite3.IntegrityError:return self.json_response({"error":"phone_exists"},409)
+                        cur=db.execute("INSERT INTO users(phone,name,farm,password_hash,created_at) VALUES(?,?,?,?,?) RETURNING id",(data["phone"],data["name"],data["farm"],hash_password(data["password"]),now_ms()))
+                        user_id=cur.fetchone()["id"]
+                        token=secrets.token_urlsafe(32); db.execute("INSERT INTO sessions VALUES(?,?,?)",(token_digest(token),user_id,now_ms()+SESSION_MS))
+                except (sqlite3.IntegrityError, psycopg.IntegrityError if psycopg else sqlite3.IntegrityError):return self.json_response({"error":"phone_exists"},409)
                 return self.json_response({"token":token,"user":{"phone":data["phone"],"name":data["name"],"farm":data["farm"]}},201)
             if path == "/api/auth/login":
                 address=self.client_address[0]
@@ -492,8 +521,9 @@ class API(SimpleHTTPRequestHandler):
                 if "@" not in email or not valid_text(name,2,100) or not valid_text(password,12,128):return self.json_response({"error":"invalid_admin"},400)
                 with connect() as db:
                     if not self.org_user(db):return self.json_response({"error":"unauthorized"},401)
-                    cur=db.execute("INSERT INTO org_admins(email,name,password_hash,created_at) VALUES(?,?,?,?)",(email,name.strip(),hash_password(password),now_ms()))
-                return self.json_response({"id":cur.lastrowid,"email":email,"name":name.strip()},201)
+                    cur=db.execute("INSERT INTO org_admins(email,name,password_hash,created_at) VALUES(?,?,?,?) RETURNING id",(email,name.strip(),hash_password(password),now_ms()))
+                    admin_id=cur.fetchone()["id"]
+                return self.json_response({"id":admin_id,"email":email,"name":name.strip()},201)
             if path == "/api/org/profile":
                 name=data.get("name")
                 if not valid_text(name,2,100):return self.json_response({"error":"invalid_profile"},400)
@@ -561,7 +591,7 @@ class API(SimpleHTTPRequestHandler):
                     return self.json_response({"id":bid,"batch_code":code,"trace_url":f"/trace?code={code}"},201)
             return self.json_response({"error":"not_found"},404)
         except (KeyError,ValueError,TypeError,json.JSONDecodeError) as e:self.json_response({"error":str(e)},400)
-        except sqlite3.IntegrityError:self.json_response({"error":"conflict"},409)
+        except (sqlite3.IntegrityError, psycopg.IntegrityError if psycopg else sqlite3.IntegrityError):self.json_response({"error":"conflict"},409)
         except Exception:self.json_response({"error":"internal_error"},500)
 
 

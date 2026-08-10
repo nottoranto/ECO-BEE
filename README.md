@@ -1,6 +1,6 @@
 # ECO Bee Farmer
 
-Backend สำหรับแพลตฟอร์ม Precision Apiculture ใช้ Python standard library และ SQLite จึงเริ่มได้ทันทีโดยไม่ต้องติดตั้งแพ็กเกจ
+Backend สำหรับแพลตฟอร์ม Precision Apiculture ใช้ PostgreSQL บน Supabase ใน production และ SQLite สำหรับทดสอบในเครื่อง
 
 ## เริ่มระบบ
 
@@ -14,7 +14,7 @@ python3 server.py
 - Organization: `http://127.0.0.1:8000/organization`
 - Trace: `http://127.0.0.1:8000/trace`
 
-หน้า `/` จะเปิด Farmer เป็นค่าเริ่มต้น และข้อมูลทั้งหมดเก็บใน `ecobee.db`
+หน้า `/` จะเปิด Farmer เป็นค่าเริ่มต้น การทดสอบในเครื่องเก็บข้อมูลใน `ecobee.db`
 
 บัญชี Organization ใช้อีเมล `admin@ecobee.go.th` และรหัสผ่านจากตัวแปร `ECOBEE_ADMIN_PASSWORD` หากรันในเครื่องโดยไม่กำหนด ระบบจะสร้างรหัสแบบใช้ครั้งแรกและแสดงใน terminal
 
@@ -24,13 +24,15 @@ python3 server.py
 ECOBEE_ENV=production \
 ECOBEE_HOST=0.0.0.0 \
 ECOBEE_ADMIN_PASSWORD='รหัสผ่านยาวอย่างน้อย12ตัว' \
-ECOBEE_DB=/var/data/ecobee.db \
+DATABASE_URL='postgresql://postgres.PROJECT:PASSWORD@POOLER:5432/postgres?sslmode=require' \
 python3 server.py
 ```
 
-ไฟล์ `render.yaml` เตรียม Web Service, health check, environment และ persistent disk สำหรับ Render แล้ว ห้าม commit ไฟล์ `.env` หรือฐานข้อมูลขึ้น Git
+ใช้ **Supabase → Connect → Session pooler** เพราะ Render ต้องเชื่อมต่อผ่าน IPv4 จากนั้นนำ URI ไปตั้งเป็น Secret ชื่อ `DATABASE_URL` ใน Render ห้าม commit URI, รหัสฐานข้อมูล หรือไฟล์ `.env` ขึ้น Git
 
-สำรองฐานข้อมูลแบบ consistent snapshot:
+Schema อยู่ใน `supabase/schema.sql` และติดตั้งไว้ใน schema ส่วนตัวชื่อ `ecobee` ตารางทั้งหมดเปิด RLS และไม่อนุญาต `anon`/`authenticated` ผ่าน Data API; การเข้าถึงทำผ่าน Backend เท่านั้น
+
+สำรองฐานข้อมูล SQLite สำหรับการทดสอบในเครื่อง:
 
 ```bash
 python3 scripts/backup.py --database /var/data/ecobee.db --output-dir /var/backups
