@@ -23,18 +23,21 @@ create table if not exists ecobee.sessions (
 );
 create table if not exists ecobee.hives (
   id text primary key,
-  user_id bigint not null references ecobee.users(id) on delete cascade,
+  user_id bigint references ecobee.users(id) on delete cascade,
+  admin_id bigint,
   name text not null,
   species text not null,
   lat double precision not null,
   lng double precision not null,
   radius_km double precision not null,
   note text not null default '',
+  is_public integer not null default 0 check (is_public in (0,1)),
   created_at bigint not null
 );
 create table if not exists ecobee.plants (
   id text primary key,
-  user_id bigint not null references ecobee.users(id) on delete cascade,
+  user_id bigint references ecobee.users(id) on delete cascade,
+  admin_id bigint,
   plant_type text not null,
   variety text not null default '',
   months text not null,
@@ -43,7 +46,8 @@ create table if not exists ecobee.plants (
 );
 create table if not exists ecobee.risk_zones (
   id text primary key,
-  user_id bigint not null references ecobee.users(id) on delete cascade,
+  user_id bigint references ecobee.users(id) on delete cascade,
+  admin_id bigint,
   name text not null,
   status text not null check(status in ('safe','danger')),
   geometry text not null,
@@ -95,6 +99,22 @@ create table if not exists ecobee.org_audit_logs (
   details text not null default '{}',
   created_at bigint not null
 );
+create table if not exists ecobee.password_reset_requests (
+  id text primary key,
+  user_id bigint not null references ecobee.users(id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending','approved','rejected')),
+  created_at bigint not null,
+  resolved_at bigint,
+  admin_id bigint references ecobee.org_admins(id) on delete set null
+);
+
+alter table ecobee.hives add column if not exists admin_id bigint;
+alter table ecobee.hives add column if not exists is_public integer not null default 0;
+alter table ecobee.hives alter column user_id drop not null;
+alter table ecobee.plants add column if not exists admin_id bigint;
+alter table ecobee.plants alter column user_id drop not null;
+alter table ecobee.risk_zones add column if not exists admin_id bigint;
+alter table ecobee.risk_zones alter column user_id drop not null;
 
 create index if not exists sessions_user_id_idx on ecobee.sessions(user_id);
 create index if not exists sessions_expires_at_idx on ecobee.sessions(expires_at);
@@ -106,6 +126,8 @@ create index if not exists harvest_batches_hive_id_idx on ecobee.harvest_batches
 create index if not exists org_sessions_admin_id_idx on ecobee.org_sessions(admin_id);
 create index if not exists org_sessions_expires_at_idx on ecobee.org_sessions(expires_at);
 create index if not exists org_audit_logs_admin_id_idx on ecobee.org_audit_logs(admin_id);
+create index if not exists password_reset_requests_user_id_idx on ecobee.password_reset_requests(user_id);
+create index if not exists password_reset_requests_status_idx on ecobee.password_reset_requests(status);
 
 alter table ecobee.kv_store enable row level security;
 alter table ecobee.users enable row level security;
@@ -119,6 +141,7 @@ alter table ecobee.org_admins enable row level security;
 alter table ecobee.org_sessions enable row level security;
 alter table ecobee.user_verifications enable row level security;
 alter table ecobee.org_audit_logs enable row level security;
+alter table ecobee.password_reset_requests enable row level security;
 
 revoke all on all tables in schema ecobee from public, anon, authenticated;
 revoke all on all sequences in schema ecobee from public, anon, authenticated;

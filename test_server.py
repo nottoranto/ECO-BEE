@@ -67,14 +67,32 @@ class BackendTests(unittest.TestCase):
         status,_=self.request("PUT","/api/storage/private/profile_0888888888",{"value":"{}"},token)
         self.assertEqual(status,200)
 
-    def test_shared_storage_cannot_modify_another_owner(self):
+    def test_gis_shared_storage_is_disabled(self):
         _,first=self.request("POST","/api/auth/register",{"phone":"0861111111","password":"strong-pass","name":"ผู้ใช้หนึ่ง","farm":"ฟาร์มหนึ่ง"})
         own=[{"id":"p1","ownerPhone":"0861111111","type":"longan"}]
         status,_=self.request("PUT","/api/storage/shared/plants",{"value":json.dumps(own)},first["token"])
-        self.assertEqual(status,200)
+        self.assertEqual(status,403)
         _,second=self.request("POST","/api/auth/register",{"phone":"0862222222","password":"strong-pass","name":"ผู้ใช้สอง","farm":"ฟาร์มสอง"})
         status,_=self.request("PUT","/api/storage/shared/plants",{"value":"[]"},second["token"])
         self.assertEqual(status,403)
+
+    def test_password_reset_request_requires_org_approval(self):
+        _,farmer=self.request("POST","/api/auth/register",{"phone":"0833333333","password":"old-password","name":"ผู้ขอรีเซ็ต","farm":"ฟาร์มคำขอ"})
+        self.assertEqual(self.request("POST","/api/auth/password-reset-requests",{"phone":"0833333333"})[0],202)
+        _,org=self.request("POST","/api/org/auth/login",{"email":"admin@ecobee.go.th","password":"test-admin-password"})
+        _,requests=self.request("GET","/api/org/password-reset-requests",token=org["token"])
+        pending=next(x for x in requests if x["phone"]=="0833333333")
+        self.assertEqual(self.request("POST","/api/org/password-reset-requests/"+pending["id"],{"action":"approve","password":"approved-password"},org["token"])[0],200)
+        self.assertEqual(self.request("GET","/api/auth/me",token=farmer["token"])[0],401)
+        self.assertEqual(self.request("POST","/api/auth/login",{"phone":"0833333333","password":"approved-password"})[0],200)
+
+    def test_map_data_is_single_relational_source(self):
+        _,farmer=self.request("POST","/api/auth/register",{"phone":"0871234567","password":"strong-pass","name":"เจ้าของแผนที่","farm":"ฟาร์มกลาง"})
+        _,hive=self.request("POST","/api/hives",{"name":"รังกลาง","species":"cerana","lat":13.5,"lng":99.8},farmer["token"])
+        self.request("POST","/api/plants",{"plant_type":"longan","months":[1,2],"geometry":{"type":"point","coords":[13.5,99.8]}},farmer["token"])
+        _,data=self.request("GET","/api/map-data",token=farmer["token"])
+        self.assertTrue(any(x["id"]==hive["id"] and x["mine"] for x in data["hives"]))
+        self.assertEqual(len(data["plants"]),1)
 
     def test_logout_revokes_session(self):
         _,auth=self.request("POST","/api/auth/register",{"phone":"0855555555","password":"strong-pass","name":"ผู้ทดสอบออก","farm":"ฟาร์มออก"})

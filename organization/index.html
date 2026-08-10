@@ -134,7 +134,7 @@ window.storage=window.storage||{
       <button id="org-zoom-out" class="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-50"><i class="fa-solid fa-minus"></i></button>
     </div>
     <div class="absolute z-20 left-5 bottom-5 flex items-center gap-4 text-xs text-gray-500 bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-md">
-      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>รังสาธิต</span>
+      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>รังในระบบ</span>
       <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span>ฟาร์มที่กำลังดู</span>
       <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>แหล่งอาหาร/ปลอดภัย</span>
       <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>จุดเสี่ยง</span>
@@ -222,7 +222,7 @@ function seedForUser(acc){
     zones:[ { id:uid(), status:'safe', name:'แปลงสาธิตปลอดสารเคมี มจธ.', geom:{type:'polygon',coords:[[c[0]+0.007,c[1]+0.007],[c[0]+0.011,c[1]+0.006],[c[0]+0.012,c[1]+0.011],[c[0]+0.007,c[1]+0.012]]}, note:'พื้นที่วิจัยของมหาวิทยาลัย ไม่มีการใช้สารเคมี', ownerPhone:acc.phone, ownerName:acc.name, createdAt:Date.now() } ] };
 }
 async function ensureSeed(){
-  for(const key of ['plants','safetyZones','feedback','agencyEdits','parkHives','plantCatalog']){
+  for(const key of ['feedback','agencyEdits','plantCatalog']){
     if(await sget(key,true)===null)await sset(key,true,[]);
   }
 }
@@ -236,7 +236,7 @@ function startLiveClock(){
 /* ================= AUTH ================= */
 let orgAcct=null;
 let orgToken=null;
-async function orgApi(path,options){options=options||{};options.headers=Object.assign({'Content-Type':'application/json',Authorization:'Bearer '+orgToken},options.headers||{});const response=await fetch(path,options),data=await response.json();if(!response.ok)throw new Error(data.error||'api_error');return data;}
+async function orgApi(path,options){options=options||{};options.headers=Object.assign({'Content-Type':'application/json',Authorization:'Bearer '+orgToken},options.headers||{});const response=await fetch(path,options),data=await response.json();if(!response.ok){const labels={unauthorized:'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่',not_found:'ไม่พบข้อมูลที่ต้องการ',weak_password:'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',invalid_admin:'ตรวจสอบอีเมล ชื่อ และรหัสผ่านอย่างน้อย 12 ตัวอักษร',cannot_delete_self:'ไม่สามารถลบบัญชีที่กำลังใช้งาน',last_admin:'ต้องมีผู้ดูแลอย่างน้อยหนึ่งบัญชี',internal_error:'ระบบขัดข้อง กรุณาลองใหม่อีกครั้ง'};const e=new Error(labels[data.error]||data.error||'ไม่สามารถเชื่อมต่อระบบได้');e.code=data.error;e.status=response.status;throw e;}return data;}
 async function orgBoot(){
   startLiveClock();
   orgToken=sessionStorage.getItem('ecobee_org_token');
@@ -308,9 +308,10 @@ async function enterOrg(){
   document.getElementById('org-auth').classList.add('hidden');
   document.getElementById('org-main').classList.remove('hidden');
   await refreshCatalog();
-  parkHives=await loadArr('parkHives',true);
-  plants=await loadArr('plants',true);
-  zones=await loadArr('safetyZones',true);
+  const mapData=await orgApi('/api/map-data');
+  parkHives=mapData.hives.map(function(h){return {id:h.id,backendId:h.id,name:h.name,species:h.species,lat:h.lat,lng:h.lng,radiusKm:h.radius_km,note:h.note,public:!!h.is_public,ownerPhone:h.owner_phone,ownerName:h.owner_name||h.admin_name,createdAt:h.created_at};});
+  plants=mapData.plants.map(function(p){return {id:p.id,backendId:p.id,type:p.plant_type,variety:p.variety,geom:p.geometry,note:p.note||'',ownerPhone:p.owner_phone||'org',ownerName:p.owner_name||p.admin_name||'หน่วยงาน',createdAt:p.created_at};});
+  zones=mapData.risk_zones.map(function(z){return {id:z.id,backendId:z.id,status:z.status,name:z.name,geom:z.geometry,note:z.note||'',ownerPhone:z.owner_phone||'org',ownerName:z.owner_name||z.admin_name||'หน่วยงาน',createdAt:z.created_at};});
   const legacyAccounts=await loadArr('accounts',false), registered=await orgApi('/api/org/farmers');
   accounts=registered.map(function(a){const old=legacyAccounts.find(function(x){return x.phone===a.phone;})||{};return Object.assign({},old,a,{loc:old.loc||LOC_MUEANG,verify:a.verify||{safety:false,standard:false}});});
   admins=await orgApi('/api/org/admins');
@@ -374,28 +375,19 @@ function buildSearchIndex(){ searchIndex={}; parkHives.forEach(function(h){ if(h
 async function deleteParkHive(id){
   const h=parkHives.find(function(x){return x.id===id;});
   confirmDelete('ลบรังสาธิตนี้?','การลบไม่สามารถย้อนกลับได้', async function(){
-    parkHives=parkHives.filter(function(x){return x.id!==id;});
-    const ok=await sset('parkHives',true,parkHives);
-    if(ok){ renderHives(); buildSearchIndex(); refreshPanel(); showToast('safe','ลบรังสาธิตแล้ว', h?h.name:''); }
-    else { parkHives.push(h); showToast('alert','ลบไม่สำเร็จ','เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'); }
+    try{await orgApi('/api/org/hives/'+encodeURIComponent(id),{method:'DELETE'});parkHives=parkHives.filter(function(x){return x.id!==id;});renderHives();buildSearchIndex();refreshPanel();showToast('safe','ลบรังแล้ว',h?h.name:'');}catch(e){showToast('alert','ลบไม่สำเร็จ',e.message);}
   });
 }
 async function deleteOrgPlant(id){
   const p=plants.find(function(x){return x.id===id;});
   confirmDelete('ลบข้อมูลพืชนี้?','การลบไม่สามารถย้อนกลับได้', async function(){
-    plants=plants.filter(function(x){return x.id!==id;});
-    const ok=await sset('plants',true,plants);
-    if(ok){ renderPlants(); refreshPanel(); showToast('safe','ลบข้อมูลพืชแล้ว',''); }
-    else { plants.push(p); showToast('alert','ลบไม่สำเร็จ','เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'); }
+    try{await orgApi('/api/org/plants/'+encodeURIComponent(id),{method:'DELETE'});plants=plants.filter(function(x){return x.id!==id;});renderPlants();refreshPanel();showToast('safe','ลบข้อมูลพืชแล้ว','');}catch(e){showToast('alert','ลบไม่สำเร็จ',e.message);}
   });
 }
 async function deleteOrgZone(id){
   const z=zones.find(function(x){return x.id===id;});
   confirmDelete('ลบพื้นที่นี้?','การลบไม่สามารถย้อนกลับได้', async function(){
-    zones=zones.filter(function(x){return x.id!==id;});
-    const ok=await sset('safetyZones',true,zones);
-    if(ok){ renderZones(); buildSearchIndex(); refreshPanel(); showToast('safe','ลบพื้นที่แล้ว',''); }
-    else { zones.push(z); showToast('alert','ลบไม่สำเร็จ','เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'); }
+    try{await orgApi('/api/org/risk-zones/'+encodeURIComponent(id),{method:'DELETE'});zones=zones.filter(function(x){return x.id!==id;});renderZones();buildSearchIndex();refreshPanel();showToast('safe','ลบพื้นที่แล้ว','');}catch(e){showToast('alert','ลบไม่สำเร็จ',e.message);}
   });
 }
 
@@ -444,12 +436,10 @@ function openHiveForm(latlng){
     const species=document.getElementById('hive-species').value;
     const radiusKm=parseFloat(document.getElementById('hive-radius').value)||SPECIES_DB[species].radiusKm;
     const pub=document.getElementById('hive-public').checked;
-    const newHive={ id:uid(), name:name, lat:latlng.lat, lng:latlng.lng, species:species, radiusKm:radiusKm, note:'', public:pub, createdAt:Date.now() };
-    parkHives.push(newHive);
-    const ok=await sset('parkHives',true,parkHives);
+    const newHive={ name:name, lat:latlng.lat, lng:latlng.lng, species:species, radiusKm:radiusKm, note:'', public:pub,ownerPhone:'org',ownerName:orgAcct.name,createdAt:Date.now() };
+    try{const saved=await orgApi('/api/org/hives',{method:'POST',body:JSON.stringify({name:name,species:species,lat:latlng.lat,lng:latlng.lng,is_public:pub})});newHive.id=saved.id;newHive.backendId=saved.id;parkHives.push(newHive);}catch(e){showToast('alert','บันทึกไม่สำเร็จ',e.message);return;}
     closeModal();
-    if(ok){ renderHives(); buildSearchIndex(); refreshPanel(); showToast('hive','บันทึกรังสาธิตแล้ว', name+(pub?' (สาธารณะ)':' (ซ่อน)')); }
-    else { parkHives.pop(); showToast('alert','บันทึกไม่สำเร็จ','เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'); }
+    renderHives();buildSearchIndex();refreshPanel();showToast('hive','บันทึกรังสาธิตแล้ว',name+(pub?' (สาธารณะ)':' (ซ่อน)'));
   });
 }
 function openPlantForm(geom){
@@ -461,12 +451,10 @@ function openPlantForm(geom){
   document.getElementById('pl-save').addEventListener('click',async function(){
     if(!selectedType){ showToast('info','ยังไม่ได้เลือกพืช',''); return; }
     const variety=document.getElementById('plant-variety').value.trim(); const note=document.getElementById('plant-note').value.trim();
-    const newPlant={ id:uid(), type:selectedType, variety:variety, geom:geom, note:note, ownerPhone:'org', ownerName:orgAcct.name, createdAt:Date.now() };
-    plants.push(newPlant);
-    const ok=await sset('plants',true,plants);
+    const newPlant={type:selectedType,variety:variety,geom:geom,note:note,ownerPhone:'org',ownerName:orgAcct.name,createdAt:Date.now()};
+    try{const saved=await orgApi('/api/org/plants',{method:'POST',body:JSON.stringify({plant_type:selectedType,variety:variety,months:(PLANT_CATALOG[selectedType].months||[]).map(function(m){return m+1;}),geometry:geom})});newPlant.id=saved.id;newPlant.backendId=saved.id;plants.push(newPlant);}catch(e){showToast('alert','บันทึกไม่สำเร็จ',e.message);return;}
     closeModal();
-    if(ok){ renderPlants(); refreshPanel(); showToast('plant','บันทึกแหล่งอาหารแล้ว', PLANT_CATALOG[selectedType].label); }
-    else { plants.pop(); showToast('alert','บันทึกไม่สำเร็จ','เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'); }
+    renderPlants();refreshPanel();showToast('plant','บันทึกแหล่งอาหารแล้ว',PLANT_CATALOG[selectedType].label);
   });
 }
 function openZoneForm(coords,status){
@@ -475,12 +463,10 @@ function openZoneForm(coords,status){
   document.getElementById('zn-cancel').addEventListener('click',closeModal);
   document.getElementById('zn-save').addEventListener('click',async function(){
     const name=document.getElementById('zone-name').value.trim()||(dz?'พื้นที่เสี่ยงสารเคมี':'พื้นที่ปลอดภัย'); const note=document.getElementById('zone-note').value.trim();
-    const newZone={ id:uid(), status:status, name:name, geom:{type:'polygon',coords:coords}, note:note, ownerPhone:'org', ownerName:orgAcct.name, createdAt:Date.now() };
-    zones.push(newZone);
-    const ok=await sset('safetyZones',true,zones);
+    const newZone={status:status,name:name,geom:{type:'polygon',coords:coords},note:note,ownerPhone:'org',ownerName:orgAcct.name,createdAt:Date.now()};
+    try{const saved=await orgApi('/api/org/risk-zones',{method:'POST',body:JSON.stringify({name:name,status:status,geometry:newZone.geom,note:note})});newZone.id=saved.id;newZone.backendId=saved.id;zones.push(newZone);}catch(e){showToast('alert','บันทึกไม่สำเร็จ',e.message);return;}
     closeModal();
-    if(ok){ renderZones(); buildSearchIndex(); refreshPanel(); showToast(dz?'alert':'safe',dz?'บันทึกพื้นที่เสี่ยงแล้ว':'บันทึกพื้นที่ปลอดภัยแล้ว','แจ้งเตือนเกษตรกรในระบบแล้ว'); }
-    else { zones.pop(); showToast('alert','บันทึกไม่สำเร็จ','เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'); }
+    renderZones();buildSearchIndex();refreshPanel();showToast(dz?'alert':'safe',dz?'บันทึกพื้นที่เสี่ยงแล้ว':'บันทึกพื้นที่ปลอดภัยแล้ว','แจ้งเตือนเกษตรกรในระบบแล้ว');
   });
 }
 
@@ -488,7 +474,7 @@ function openZoneForm(coords,status){
 const NAV=[
   {id:'assess',label:'เพิ่มข้อมูล',icon:'fa-solid fa-circle-plus'},
   {id:'flora',label:'พรรณไม้ & แหล่งอาหาร',icon:'fa-solid fa-seedling'},
-  {id:'hives',label:'จัดการรังสาธิต',icon:'hive'},
+  {id:'hives',label:'จัดการรังผึ้ง',icon:'hive'},
   {id:'farmers',label:'จัดการเกษตรกร',icon:'fa-solid fa-users'},
   {id:'reports',label:'ภาพรวม & รายงาน',icon:'fa-solid fa-chart-pie'},
   {id:'permissions',label:'สิทธิ์ผู้ใช้งาน',icon:'fa-solid fa-user-shield'},
@@ -521,7 +507,7 @@ function renderMiddle(id){
 }
 
 function assessHtml(){
-  let html = '<div class="bg-sky-50 border border-sky-100 rounded-2xl p-4 text-xs text-sky-700 leading-relaxed animate-fade-in"><i class="fa-solid fa-circle-info mr-1"></i>หน่วยงานทำได้เหมือนเกษตรกร รังผึ้งของเกษตรกรแต่ละรายเป็นข้อมูลส่วนตัว ระบบแสดงเฉพาะรังสาธิตของหน่วยงานและข้อมูลสาธารณะที่แชร์ร่วมกัน</div>';
+  let html = '<div class="bg-sky-50 border border-sky-100 rounded-2xl p-4 text-xs text-sky-700 leading-relaxed animate-fade-in"><i class="fa-solid fa-circle-info mr-1"></i>ข้อมูลรัง พืชอาหาร และพื้นที่ทั้งหมดอ่านจากฐานข้อมูลกลางชุดเดียว หน่วยงานเห็นข้อมูลเพื่อดูแลระบบ ส่วนเกษตรกรเห็นรังของตนเองและข้อมูลสาธารณะ</div>';
   if(farmerViewPhone){
     const a = accounts.find(function(x){return x.phone===farmerViewPhone;});
     html += '<div class="bg-sky-600 text-white rounded-2xl p-4 animate-fade-in flex items-start gap-3"><i class="fa-solid fa-map-location-dot mt-0.5"></i><div class="flex-1 min-w-0"><p class="text-sm font-semibold">กำลังดูฟาร์มของ '+escapeHtml(a?a.name:'')+'</p><p class="text-xs text-sky-100 mt-0.5">แผนที่ปรับมุมมองให้เห็นรังผึ้ง พืชอาหาร และพื้นที่เสี่ยง/ปลอดภัยของเกษตรกรรายนี้ทั้งหมด · คลิกหมุดสีฟ้าเพื่อแก้ไขรังผึ้ง</p></div><button id="close-farmerview" class="text-xs font-semibold bg-white/20 hover:bg-white/30 rounded-full px-3 py-1.5 shrink-0">ปิด</button></div>';
@@ -533,7 +519,7 @@ function assessHtml(){
     orgMenuRow('danger','rose','fa-solid fa-triangle-exclamation',false,'วาดพื้นที่เสี่ยงสารเคมี','เตือนเกษตรกรไม่ให้ตั้งรังใกล้บริเวณนี้')+
   '</div></div>';
   html += '<div class="bg-white rounded-2xl border border-gray-200 p-5 animate-fade-in"><div class="flex items-center justify-between mb-3"><h3 class="font-display font-bold text-sm text-gray-800">รายการข้อมูลในระบบ</h3><button id="btn-fit-all" class="text-xs font-semibold text-amber-600 flex items-center gap-1"><i class="fa-solid fa-expand"></i>ดูทั้งหมด</button></div><div class="flex gap-1.5 mb-3" id="assess-list-tabs">'+
-    assessListTabBtn('hives','รังสาธิต')+assessListTabBtn('plants','พืชอาหาร')+assessListTabBtn('zones','พื้นที่')+
+    assessListTabBtn('hives','รังผึ้ง')+assessListTabBtn('plants','พืชอาหาร')+assessListTabBtn('zones','พื้นที่')+
   '</div><div id="assess-list-body" class="space-y-2 max-h-64 overflow-y-auto"></div></div>';
   return html;
 }
@@ -547,15 +533,15 @@ function floraHtml(){ return '<div id="org-cal-summary"></div>'+
   '<div class="bg-white rounded-2xl border border-gray-200 p-5 animate-fade-in"><h3 class="font-display font-bold text-sm text-gray-800 mb-3">รายการพืชอาหารที่บันทึก ('+plants.length+')</h3><div class="space-y-2 max-h-56 overflow-y-auto">'+plantListHtml()+'</div></div>'+
   '<div class="bg-white rounded-2xl border border-gray-200 p-5 animate-fade-in"><h3 class="font-display font-bold text-sm text-gray-800 mb-1 flex items-center gap-2"><i class="fa-solid fa-database text-amber-500"></i>จัดการฐานข้อมูลพืช</h3><p class="text-xs text-gray-400 mb-3">เพิ่มพรรณไม้ใหม่พร้อมเดือนที่ให้ผลผลิต ใช้ทั้งระบบ (แท็บนี้จัดการเฉพาะฐานข้อมูลพืช ไม่ปักหมุดหรือวาดพื้นที่ — ใช้แท็บ "เพิ่มข้อมูล" สำหรับปักหมุดพืชจริง)</p><input id="catalog-name" placeholder="ชื่อพืช เช่น กระถินณรงค์" class="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-amber-400"><input id="catalog-why" placeholder="เหตุผล/ประโยชน์ (แสดงในคำแนะนำ)" class="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-amber-400"><p class="text-[11px] text-gray-400 mb-1.5">เดือนที่ออกดอก/ให้ผลผลิต</p><div id="catalog-months-picker" class="grid grid-cols-4 gap-1.5 mb-3"></div><button id="catalog-save" class="w-full h-10 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold mb-4">เพิ่มลงฐานข้อมูล</button><p class="text-xs text-gray-400 mb-2">พืชในฐานข้อมูล (<span id="catalog-count">0</span>)</p><div id="catalog-list" class="space-y-1.5 max-h-56 overflow-y-auto"></div></div>';
 }
-function hivesHtml(){ return '<div class="bg-sky-50 border border-sky-100 rounded-2xl p-4 text-xs text-sky-700 leading-relaxed animate-fade-in"><i class="fa-solid fa-circle-info mr-1"></i>รังในหน้านี้คือรังสาธิตของหน่วยงาน เปิดสาธารณะหรือซ่อนได้ รังของเกษตรกรเป็นข้อมูลส่วนตัว ไม่แสดงในระบบนี้</div>'+
+function hivesHtml(){ return '<div class="bg-sky-50 border border-sky-100 rounded-2xl p-4 text-xs text-sky-700 leading-relaxed animate-fade-in"><i class="fa-solid fa-circle-info mr-1"></i>แสดงรังจากฐานข้อมูลกลางทั้งหมด รังที่หน่วยงานเพิ่มสามารถเปิดหรือซ่อนจากสาธารณะได้</div>'+
   '<div class="bg-white rounded-2xl border border-gray-200 p-5 animate-fade-in"><h3 class="font-display font-bold text-sm text-gray-800 mb-1">เพิ่มรังสาธิตใหม่</h3><p class="text-xs text-gray-400 mb-3">เลือกซ่อนหรือเปิดสาธารณะได้</p><div class="space-y-2.5">'+orgMenuRow('hive','amber','icon-hive',true,'ปักหมุดรังผึ้ง (จุด)','คลิกบนแผนที่เพื่อวางตำแหน่ง')+'</div></div>'+
   '<div class="bg-white rounded-2xl border border-gray-200 p-5 animate-fade-in"><button id="btn-toggle-hives" class="w-full h-11 rounded-xl border border-gray-200 text-gray-500 text-sm font-semibold flex items-center justify-center gap-2 hover:border-gray-300 transition-colors"><i class="fa-solid fa-eye"></i>ซ่อน/แสดงรังบนแผนที่</button></div>'+
-  '<div class="bg-white rounded-2xl border border-gray-200 p-5 animate-fade-in"><h3 class="font-display font-bold text-sm text-gray-800 mb-3">รังสาธิตทั้งหมด ('+parkHives.length+')</h3><div class="space-y-2 max-h-80 overflow-y-auto">'+hiveListHtml()+'</div></div>';
+  '<div class="bg-white rounded-2xl border border-gray-200 p-5 animate-fade-in"><h3 class="font-display font-bold text-sm text-gray-800 mb-3">รังทั้งหมดในระบบ ('+parkHives.length+')</h3><div class="space-y-2 max-h-80 overflow-y-auto">'+hiveListHtml()+'</div></div>';
 }
 
 function plantListHtml(){ if(!plants.length) return '<p class="text-xs text-gray-400">ยังไม่มีข้อมูล</p>'; return plants.map(function(p){ const plant=PLANT_CATALOG[p.type]||{label:p.type,icon:'🌿'}; return '<div class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-gray-100 hover:border-emerald-300 hover:bg-emerald-50 transition-colors"><button data-goto-plant="'+p.id+'" class="flex items-center gap-2.5 flex-1 min-w-0 text-left"><span class="text-lg">'+plant.icon+'</span><span class="flex-1 min-w-0"><span class="block text-sm font-semibold text-gray-700 truncate">'+escapeHtml(plant.label)+(p.variety?' · '+escapeHtml(p.variety):'')+'</span><span class="block text-[11px] text-gray-400 truncate">'+escapeHtml(p.ownerName||'')+'</span></span></button><button data-del-plant="'+p.id+'" class="text-rose-400 shrink-0"><i class="fa-solid fa-trash-can"></i></button></div>'; }).join(''); }
 function zoneListHtml(){ if(!zones.length) return '<p class="text-xs text-gray-400">ยังไม่มีพื้นที่</p>'; return zones.map(function(z){ const dz=z.status==='danger'; return '<div class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-gray-100 '+(dz?'hover:border-rose-300 hover:bg-rose-50':'hover:border-emerald-300 hover:bg-emerald-50')+' transition-colors"><button data-goto-zone="'+z.id+'" class="flex items-center gap-2.5 flex-1 min-w-0 text-left"><span class="w-8 h-8 rounded-lg '+(dz?'bg-rose-50 text-rose-500':'bg-emerald-50 text-emerald-500')+' flex items-center justify-center shrink-0"><i class="fa-solid '+(dz?'fa-triangle-exclamation':'fa-shield')+' text-xs"></i></span><span class="flex-1 min-w-0"><span class="block text-sm font-semibold text-gray-700 truncate">'+escapeHtml(z.name||(dz?'พื้นที่เสี่ยง':'พื้นที่ปลอดภัย'))+'</span><span class="block text-[11px] text-gray-400 truncate">'+escapeHtml(z.ownerName||'')+'</span></span></button><button data-del-zone="'+z.id+'" class="text-rose-400 shrink-0"><i class="fa-solid fa-trash-can"></i></button></div>'; }).join(''); }
-function hiveListHtml(){ if(!parkHives.length) return '<p class="text-xs text-gray-400">ยังไม่มีรังสาธิต</p>'; return parkHives.map(function(h){ const spec=SPECIES_DB[h.species]||SPECIES_DB.meliponini; return '<div class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-gray-100"><span class="w-8 h-8 rounded-lg '+(h.public?'bg-amber-50 text-amber-500':'bg-sky-50 text-sky-500')+' flex items-center justify-center shrink-0"><svg class="w-4 h-4" fill="currentColor"><use href="#icon-hive"/></svg></span><span class="flex-1 min-w-0"><span class="block text-sm font-semibold text-gray-700 truncate">'+escapeHtml(h.name)+'</span><span class="block text-[11px] text-gray-400 truncate">'+escapeHtml(spec.label)+' · '+(h.public?'สาธารณะ':'ซ่อน')+'</span></span><button data-toggle-hive="'+h.id+'" class="text-xs font-semibold '+(h.public?'text-amber-600':'text-sky-600')+' shrink-0"><i class="fa-solid '+(h.public?'fa-globe':'fa-eye-slash')+'"></i></button><button data-goto-hivepin="'+h.id+'" class="text-gray-300 shrink-0 ml-1"><i class="fa-solid fa-location-dot"></i></button><button data-del-hive="'+h.id+'" class="text-rose-400 shrink-0 ml-1"><i class="fa-solid fa-trash-can"></i></button></div>'; }).join(''); }
+function hiveListHtml(){ if(!parkHives.length) return '<p class="text-xs text-gray-400">ยังไม่มีรังในระบบ</p>'; return parkHives.map(function(h){ const spec=SPECIES_DB[h.species]||SPECIES_DB.meliponini; const agency=h.ownerPhone==='org'; return '<div class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-gray-100"><span class="w-8 h-8 rounded-lg '+(h.public?'bg-amber-50 text-amber-500':'bg-sky-50 text-sky-500')+' flex items-center justify-center shrink-0"><svg class="w-4 h-4" fill="currentColor"><use href="#icon-hive"/></svg></span><span class="flex-1 min-w-0"><span class="block text-sm font-semibold text-gray-700 truncate">'+escapeHtml(h.name)+'</span><span class="block text-[11px] text-gray-400 truncate">'+escapeHtml(spec.label)+' · '+escapeHtml(h.ownerName||'หน่วยงาน')+'</span></span>'+(agency?'<button data-toggle-hive="'+h.id+'" class="text-xs font-semibold '+(h.public?'text-amber-600':'text-sky-600')+' shrink-0"><i class="fa-solid '+(h.public?'fa-globe':'fa-eye-slash')+'"></i></button>':'')+'<button data-goto-hivepin="'+h.id+'" class="text-gray-300 shrink-0 ml-1"><i class="fa-solid fa-location-dot"></i></button><button data-del-hive="'+h.id+'" class="text-rose-400 shrink-0 ml-1"><i class="fa-solid fa-trash-can"></i></button></div>'; }).join(''); }
 
 function wireMiddle(id){
   const byId=document.getElementById.bind(document);
@@ -570,7 +556,7 @@ function wireListRowEvents(){
   document.querySelectorAll('[data-goto-plant]').forEach(function(b){ b.addEventListener('click',function(){ const p=plants.find(function(x){return x.id===b.dataset.gotoPlant;}); if(!p) return; const pt=p.geom.type==='point'?p.geom.coords:centroid(p.geom.coords); map.flyTo(pt,17); setTimeout(function(){ const m=plantById[p.id]; if(m)m.openPopup(); },400); }); });
   document.querySelectorAll('[data-goto-zone]').forEach(function(b){ b.addEventListener('click',function(){ const z=zones.find(function(x){return x.id===b.dataset.gotoZone;}); if(!z) return; map.flyTo(centroid(z.geom.coords),16); setTimeout(function(){ const m=zoneById[z.id]; if(m)m.openPopup(); },400); }); });
   document.querySelectorAll('[data-goto-hivepin]').forEach(function(b){ b.addEventListener('click',function(){ const h=parkHives.find(function(x){return x.id===b.dataset.gotoHivepin;}); if(!h) return; map.flyTo([h.lat,h.lng],17); setTimeout(function(){ const m=hiveById[h.id]; if(m)m.openPopup(); },400); }); });
-  document.querySelectorAll('[data-toggle-hive]').forEach(function(b){ b.addEventListener('click',async function(){ const h=parkHives.find(function(x){return x.id===b.dataset.toggleHive;}); if(!h) return; const prev=h.public; h.public=!h.public; const ok=await sset('parkHives',true,parkHives); if(ok){ renderHives(); refreshPanel(); showToast('info',h.public?'เปิดสาธารณะแล้ว':'ซ่อนแล้ว',h.name); } else { h.public=prev; showToast('alert','บันทึกไม่สำเร็จ',''); } }); });
+  document.querySelectorAll('[data-toggle-hive]').forEach(function(b){ b.addEventListener('click',async function(){ const h=parkHives.find(function(x){return x.id===b.dataset.toggleHive;}); if(!h) return; const prev=h.public; h.public=!h.public; try{await orgApi('/api/org/hives/'+encodeURIComponent(h.id),{method:'PUT',body:JSON.stringify({is_public:h.public})});renderHives();refreshPanel();showToast('info',h.public?'เปิดสาธารณะแล้ว':'ซ่อนแล้ว',h.name);}catch(e){h.public=prev;showToast('alert','บันทึกไม่สำเร็จ',e.message);} }); });
   document.querySelectorAll('[data-del-hive]').forEach(function(b){ b.addEventListener('click',function(){ deleteParkHive(b.dataset.delHive); }); });
   document.querySelectorAll('[data-del-plant]').forEach(function(b){ b.addEventListener('click',function(){ deleteOrgPlant(b.dataset.delPlant); }); });
   document.querySelectorAll('[data-del-zone]').forEach(function(b){ b.addEventListener('click',function(){ deleteOrgZone(b.dataset.delZone); }); });
@@ -604,7 +590,7 @@ function renderCatalogList(){ const list=document.getElementById('catalog-list')
 async function renderFarmers(){
   const legacy=await loadArr('accounts',false),registered=await orgApi('/api/org/farmers');
   accounts=registered.map(function(a){const old=legacy.find(function(x){return x.phone===a.phone;})||{};return Object.assign({},old,a,{loc:old.loc||LOC_MUEANG,verify:a.verify||{safety:false,standard:false}});});
-  const feedback=await loadArr('feedback',true);
+  const feedback=await loadArr('feedback',true),resetRequests=await orgApi('/api/org/password-reset-requests'),pendingResets=resetRequests.filter(function(r){return r.status==='pending';});
   const panel=document.getElementById('fullwidth-panel');
   const rows=[];
   for(const acc of accounts){
@@ -625,6 +611,7 @@ async function renderFarmers(){
   panel.innerHTML='<div class="max-w-5xl mx-auto animate-fade-in">'+
     '<h2 class="font-display font-bold text-2xl sm:text-3xl text-gray-800 tracking-tight">จัดการเกษตรกรที่ขึ้นทะเบียน</h2>'+
     '<p class="text-gray-400 text-sm mt-1.5 mb-6">ดูบัญชี ดูแผนที่/แก้ไขฟาร์ม รีเซ็ตรหัสผ่าน ยืนยันความปลอดภัย/ผ่านมาตรฐาน ดาวน์โหลด QR (การแก้ไขจะแจ้งเตือนไปยังเกษตรกร)</p>'+
+    (pendingResets.length?'<div class="bg-amber-50 rounded-2xl border border-amber-200 p-5 mb-6"><h3 class="font-display font-bold text-amber-800 mb-3"><i class="fa-solid fa-key mr-2"></i>คำขอรีเซ็ตรหัสผ่าน '+pendingResets.length+' รายการ</h3><div class="space-y-2">'+pendingResets.map(function(r){return '<div class="bg-white rounded-xl border border-amber-100 p-3 flex items-center gap-3"><div class="flex-1"><p class="text-sm font-semibold text-gray-700">'+escapeHtml(r.name)+' · '+escapeHtml(r.farm)+'</p><p class="text-xs text-gray-400">'+escapeHtml(r.phone)+' · '+new Date(r.created_at).toLocaleString('th-TH')+'</p></div><button data-reset-reject="'+r.id+'" class="text-xs text-rose-600 font-semibold px-2">ปฏิเสธ</button><button data-reset-approve="'+r.id+'" data-reset-phone="'+r.phone+'" class="h-9 px-3 rounded-lg bg-amber-500 text-white text-xs font-semibold">อนุมัติ</button></div>';}).join('')+'</div></div>':'')+
     '<div class="bg-white rounded-2xl border border-gray-200 p-6 mb-6"><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-gray-400 text-xs border-b border-gray-100"><th class="pb-2.5 font-semibold">เกษตรกร</th><th class="pb-2.5 font-semibold">เบอร์โทร</th><th class="pb-2.5 font-semibold">สถานะรับรอง</th><th class="pb-2.5 font-semibold text-right">จัดการ</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div></div>'+
     '<div class="bg-white rounded-2xl border border-gray-200 p-6"><h3 class="font-display font-bold text-base text-gray-800 mb-1 flex items-center gap-2"><i class="fa-solid fa-inbox text-emerald-500"></i>ข้อคิดเห็น / คำขอเพิ่มพรรณไม้'+(newFb.length?' <span class="text-[11px] bg-rose-500 text-white px-2 py-0.5 rounded-full">'+newFb.length+' ใหม่</span>':'')+'</h3><p class="text-xs text-gray-400 mb-4">ข้อความจากเกษตรกร</p><div class="space-y-2">'+(feedback.length?feedback.slice().reverse().map(function(f){ return '<div class="flex items-start gap-3 p-3 rounded-xl border border-gray-100"><span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0"><i class="fa-solid '+(f.type==='plant'?'fa-seedling':'fa-comment')+' text-xs"></i></span><div class="flex-1 min-w-0"><p class="text-sm text-gray-700">'+escapeHtml(f.message)+'</p><p class="text-[11px] text-gray-400 mt-0.5">'+escapeHtml(f.fromName||'')+' · '+new Date(f.createdAt).toLocaleDateString('th-TH')+'</p></div>'+(f.status==='new'?'<span class="text-[10px] font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full shrink-0">ใหม่</span>':'')+'</div>'; }).join(''):'<p class="text-xs text-gray-400">ยังไม่มีข้อคิดเห็น</p>')+'</div></div>'+
     '</div>';
@@ -634,6 +621,8 @@ async function renderFarmers(){
   panel.querySelectorAll('[data-fverify]').forEach(function(b){ b.addEventListener('click',function(){ openFarmerVerify(b.dataset.fverify); }); });
   panel.querySelectorAll('[data-fqr]').forEach(function(b){ b.addEventListener('click',function(){ openFarmerQR(b.dataset.fqr); }); });
   panel.querySelectorAll('[data-fdelete]').forEach(function(b){ b.addEventListener('click',function(){ openFarmerDelete(b.dataset.fdelete); }); });
+  panel.querySelectorAll('[data-reset-approve]').forEach(function(b){b.addEventListener('click',function(){openResetApproval(b.dataset.resetApprove,b.dataset.resetPhone);});});
+  panel.querySelectorAll('[data-reset-reject]').forEach(function(b){b.addEventListener('click',async function(){try{await orgApi('/api/org/password-reset-requests/'+encodeURIComponent(b.dataset.resetReject),{method:'POST',body:JSON.stringify({action:'reject'})});showToast('info','ปฏิเสธคำขอแล้ว','');renderFarmers();}catch(e){showToast('alert','ดำเนินการไม่สำเร็จ',e.message);}});});
   if(newFb.length){ feedback.forEach(function(f){ f.status='read'; }); await sset('feedback',true,feedback); }
 }
 function findAcc(phone){ return accounts.find(function(a){ return a.phone===phone; }); }
@@ -645,7 +634,7 @@ function openFarmerDelete(phone){
       if(farmerViewPhone===phone) clearFarmerView();
       await renderFarmers();
       showToast('safe','ลบบัญชีแล้ว',a.name+' · '+a.farm);
-    }catch(e){ showToast('alert','ลบบัญชีไม่สำเร็จ','กรุณาลองใหม่อีกครั้ง'); }
+    }catch(e){ showToast('alert','ลบบัญชีไม่สำเร็จ',e.message); }
   });
 }
 async function pushAgencyAlert(targetPhone,title,detail){ let edits=await loadArr('agencyEdits',true); edits.push({ id:uid(), targetPhone:targetPhone, title:title, detail:detail, by:orgAcct.name, createdAt:Date.now() }); return await sset('agencyEdits',true,edits); }
@@ -656,7 +645,7 @@ async function viewFarmerOnMap(phone){
   const a=findAcc(phone); if(!a) return;
   if(map) map.invalidateSize();
   clearFarmerView();
-  const hives=await loadArr('myHives_'+phone,false);
+  const hives=parkHives.filter(function(h){return h.ownerPhone===phone;});
   const myPlants=plants.filter(function(p){ return p.ownerPhone===phone; });
   const myZones=zones.filter(function(z){ return z.ownerPhone===phone; });
   farmerViewPhone=phone;
@@ -700,9 +689,7 @@ function openFarmerHiveEdit(phone, hives, hiveId){
     const changes=[]; if(nn!==h.name) changes.push('ชื่อรัง: '+h.name+' → '+nn); if(nr!==h.radiusKm) changes.push('รัศมี: '+h.radiusKm+' → '+nr+' กม.');
     const prevName=h.name, prevRadius=h.radiusKm;
     h.name=nn; h.radiusKm=nr;
-    const ok=await sset('myHives_'+phone,false,hives);
-    if(ok){ if(changes.length) await pushAgencyAlert(phone,'หน่วยงานแก้ไขข้อมูลรังผึ้งของคุณ',changes.join(' · ')); closeModal(); showToast('safe','บันทึกแล้ว','แจ้งเตือนเกษตรกรเรียบร้อย'); viewFarmerOnMap(phone); }
-    else { h.name=prevName; h.radiusKm=prevRadius; closeModal(); showToast('alert','บันทึกไม่สำเร็จ','เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'); }
+    try{await orgApi('/api/org/hives/'+encodeURIComponent(h.id),{method:'POST',body:JSON.stringify({name:nn,radius_km:nr})});if(changes.length)await pushAgencyAlert(phone,'หน่วยงานแก้ไขข้อมูลรังผึ้งของคุณ',changes.join(' · '));closeModal();showToast('safe','บันทึกแล้ว','แจ้งเตือนเกษตรกรเรียบร้อย');viewFarmerOnMap(phone);}catch(e){h.name=prevName;h.radiusKm=prevRadius;closeModal();showToast('alert','บันทึกไม่สำเร็จ',e.message);}
   });
 }
 function openFarmerEdit(phone){
@@ -715,7 +702,7 @@ function openFarmerEdit(phone){
     const prevName=a.name, prevFarm=a.farm;
     a.name=nn; a.farm=nf;
     try{await orgApi('/api/org/farmers/'+encodeURIComponent(phone)+'/profile',{method:'POST',body:JSON.stringify({name:nn,farm:nf})});await sset('profile_'+phone,false,{name:nn,farm:nf});if(changes.length)await pushAgencyAlert(phone,'หน่วยงานแก้ไขข้อมูลของคุณ',changes.join(' · '));renderFarmers();closeModal();showToast('safe','บันทึกแล้ว','แจ้งเตือนไปยังเกษตรกรเรียบร้อย');}
-    catch(e){a.name=prevName;a.farm=prevFarm;closeModal();showToast('alert','บันทึกไม่สำเร็จ','เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');}
+    catch(e){a.name=prevName;a.farm=prevFarm;closeModal();showToast('alert','บันทึกไม่สำเร็จ',e.message);}
   });
 }
 function openFarmerPass(phone){
@@ -725,8 +712,14 @@ function openFarmerPass(phone){
   document.getElementById('fp-save').addEventListener('click',async function(){
     const np=document.getElementById('fp-pass').value.trim(); if(np.length<8){ showToast('info','รหัสผ่านสั้นเกินไป','ต้องมีอย่างน้อย 8 ตัวอักษร'); return; }
     try{await orgApi('/api/org/farmers/'+encodeURIComponent(phone)+'/reset-password',{method:'POST',body:JSON.stringify({password:np})});await pushAgencyAlert(phone,'หน่วยงานรีเซ็ตรหัสผ่านให้คุณ','session เดิมถูกยกเลิก กรุณาเข้าสู่ระบบด้วยรหัสใหม่');closeModal();showToast('safe','รีเซ็ตรหัสผ่านแล้ว',a.name);}
-    catch(e){showToast('alert','รีเซ็ตไม่สำเร็จ','เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');}
+    catch(e){showToast('alert','รีเซ็ตไม่สำเร็จ',e.message);}
   });
+}
+function openResetApproval(requestId,phone){
+  const a=findAcc(phone);if(!a)return;
+  openModal('<h3 class="font-display font-bold text-lg text-gray-800 mb-2">อนุมัติคำขอรีเซ็ตรหัสผ่าน</h3><p class="text-xs text-gray-400 mb-4">'+escapeHtml(a.name)+' · '+escapeHtml(a.phone)+'</p><input id="ra-pass" type="text" minlength="8" maxlength="128" placeholder="กำหนดรหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm"><p class="text-[11px] text-gray-400 mt-2">แจ้งรหัสใหม่นี้แก่เกษตรกรผ่านช่องทางที่ยืนยันตัวตนแล้ว</p><div class="flex gap-2.5 mt-5"><button id="ra-cancel" class="flex-1 h-11 rounded-xl border border-gray-200 text-gray-500 font-semibold">ยกเลิก</button><button id="ra-save" class="flex-1 h-11 rounded-xl bg-amber-500 text-white font-semibold">อนุมัติและตั้งรหัส</button></div>');
+  document.getElementById('ra-cancel').addEventListener('click',closeModal);
+  document.getElementById('ra-save').addEventListener('click',async function(){const password=document.getElementById('ra-pass').value;if(password.length<8){showToast('info','รหัสผ่านสั้นเกินไป','ต้องมีอย่างน้อย 8 ตัวอักษร');return;}try{await orgApi('/api/org/password-reset-requests/'+encodeURIComponent(requestId),{method:'POST',body:JSON.stringify({action:'approve',password:password})});closeModal();showToast('safe','อนุมัติคำขอแล้ว','เซสชันเดิมถูกยกเลิก กรุณาแจ้งรหัสใหม่แก่เกษตรกร');renderFarmers();}catch(e){showToast('alert','อนุมัติไม่สำเร็จ',e.message);}});
 }
 function openFarmerVerify(phone){
   const a=findAcc(phone); if(!a) return; const v=a.verify||{};
@@ -736,11 +729,11 @@ function openFarmerVerify(phone){
     const prevVerify=a.verify;
     a.verify={ safety:document.getElementById('v-safety').checked, standard:document.getElementById('v-standard').checked };
     try{await orgApi('/api/org/farmers/'+encodeURIComponent(phone)+'/verification',{method:'POST',body:JSON.stringify(a.verify)});await pushAgencyAlert(phone,'หน่วยงานอัปเดตสถานะการรับรอง',(a.verify.safety?'✓ ผ่านความปลอดภัย ':'')+(a.verify.standard?'✓ ผ่านมาตรฐาน':'')||'ยกเลิกการรับรอง');renderFarmers();closeModal();showToast('safe','บันทึกสถานะแล้ว',a.name);}
-    catch(e){a.verify=prevVerify;closeModal();showToast('alert','บันทึกไม่สำเร็จ','เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');}
+    catch(e){a.verify=prevVerify;closeModal();showToast('alert','บันทึกไม่สำเร็จ',e.message);}
   });
 }
 function openFarmerQR(phone){
-  const a=findAcc(phone); if(!a) return; const payload='ECOBEE|farm='+a.farm+'|owner='+a.name+'|phone='+a.phone;
+  const a=findAcc(phone); if(!a) return; const payload=location.origin+'/trace?farmer='+encodeURIComponent(a.phone);
   openModal('<div class="text-center"><h3 class="font-display font-bold text-lg text-gray-800 mb-1">QR เกษตรกร</h3><p class="text-xs text-gray-400 mb-4">'+escapeHtml(a.name)+' · '+escapeHtml(a.farm)+'</p><div id="fqr-holder" class="inline-block bg-white p-3 rounded-2xl border border-gray-200 shadow-sm"></div><div class="flex gap-2.5 mt-5"><button id="fqr-close" class="flex-1 h-11 rounded-xl border border-gray-200 text-gray-500 font-semibold text-sm">ปิด</button><button id="fqr-dl" class="flex-1 h-11 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm"><i class="fa-solid fa-download mr-1.5"></i>ดาวน์โหลด</button></div></div>');
   const holder=document.getElementById('fqr-holder'); new QRCode(holder,{text:payload,width:180,height:180,colorDark:'#1f2937',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
   document.getElementById('fqr-close').addEventListener('click',closeModal);
@@ -768,9 +761,9 @@ async function renderReports(){
   const atRiskCount=computeAtRiskHives().length;
   panel.innerHTML='<div class="max-w-6xl mx-auto animate-fade-in">'+
     '<div class="flex items-start justify-between gap-4 flex-wrap"><div><h2 class="font-display font-bold text-2xl sm:text-3xl text-gray-800 tracking-tight">ภาพรวมและรายงาน</h2><p class="text-gray-400 text-sm mt-1.5 mb-3">สรุปข้อมูลสาธารณะทั้งหมดในระบบ</p></div><div class="flex gap-2 shrink-0"><button id="export-json" class="h-10 px-4 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:border-amber-300 hover:text-amber-600 transition-colors flex items-center gap-2"><i class="fa-solid fa-download"></i>JSON</button><button id="export-pdf" class="h-10 px-4 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:border-amber-300 hover:text-amber-600 transition-colors flex items-center gap-2"><i class="fa-solid fa-file-pdf"></i>PDF</button></div></div>'+
-    '<div class="bg-amber-50 border border-amber-100 rounded-2xl p-4 text-xs text-amber-700 leading-relaxed mb-8"><i class="fa-solid fa-circle-info mr-1"></i>ตัวเลขรังผึ้งนับเฉพาะรังสาธิตของหน่วยงาน รังของเกษตรกรเป็นข้อมูลส่วนตัว ไม่นับรวมเพื่อปกป้องความเป็นส่วนตัว</div>'+
+    '<div class="bg-amber-50 border border-amber-100 rounded-2xl p-4 text-xs text-amber-700 leading-relaxed mb-8"><i class="fa-solid fa-circle-info mr-1"></i>รายงานนี้คำนวณจากตารางรัง พืชอาหาร และพื้นที่กลางชุดเดียวกัน</div>'+
     '<div class="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-8">'+
-      statCard('amber','icon-hive',parkHives.length,'รังสาธิตในระบบ',true)+
+      statCard('amber','icon-hive',parkHives.length,'รังทั้งหมดในระบบ',true)+
       statCard('sky','fa-users',accounts.length,'เกษตรกรที่ขึ้นทะเบียน',false)+
       statCard('emerald','fa-shield',safeZones,'พื้นที่ปลอดภัย',false)+
       statCard('rose','fa-triangle-exclamation',dangerZones,'จุดเสี่ยงสารเคมี',false)+

@@ -34,10 +34,10 @@ PAGE_FILES = {
 SPECIES_RADIUS = {"meliponini": 0.3, "cerana": 1.5, "mellifera": 3.0, "dorsata": 5.0}
 SESSION_MS = 12 * 60 * 60 * 1000
 LOGIN_ATTEMPTS = {}
-FARMER_PRIVATE_PREFIXES = ("profile_", "myHives_", "seenAlerts_", "uiScale")
-ORG_PRIVATE_PREFIXES = ("accounts", "admins", "profile_", "myHives_", "orgSettings")
-FARMER_SHARED_WRITES = {"plants", "safetyZones", "feedback"}
-ORG_SHARED_WRITES = {"plants", "safetyZones", "feedback", "agencyEdits", "parkHives", "plantCatalog"}
+FARMER_PRIVATE_PREFIXES = ("profile_", "seenAlerts_", "uiScale")
+ORG_PRIVATE_PREFIXES = ("accounts", "admins", "profile_", "orgSettings")
+FARMER_SHARED_WRITES = {"feedback"}
+ORG_SHARED_WRITES = {"feedback", "agencyEdits", "plantCatalog"}
 
 
 class PostgresConnection:
@@ -82,17 +82,21 @@ def init_db():
           expires_at INTEGER NOT NULL
         );
         CREATE TABLE IF NOT EXISTS hives (
-          id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          id TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          admin_id INTEGER REFERENCES org_admins(id) ON DELETE SET NULL,
           name TEXT NOT NULL, species TEXT NOT NULL, lat REAL NOT NULL, lng REAL NOT NULL,
-          radius_km REAL NOT NULL, note TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL
+          radius_km REAL NOT NULL, note TEXT NOT NULL DEFAULT '', is_public INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL
         );
         CREATE TABLE IF NOT EXISTS plants (
-          id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          id TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          admin_id INTEGER REFERENCES org_admins(id) ON DELETE SET NULL,
           plant_type TEXT NOT NULL, variety TEXT NOT NULL DEFAULT '', months TEXT NOT NULL,
           geometry TEXT NOT NULL, created_at INTEGER NOT NULL
         );
         CREATE TABLE IF NOT EXISTS risk_zones (
-          id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          id TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          admin_id INTEGER REFERENCES org_admins(id) ON DELETE SET NULL,
           name TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('safe','danger')),
           geometry TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL
         );
@@ -124,7 +128,27 @@ def init_db():
           action TEXT NOT NULL, target TEXT NOT NULL, details TEXT NOT NULL DEFAULT '{}',
           created_at INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS password_reset_requests (
+          id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+          created_at INTEGER NOT NULL, resolved_at INTEGER, admin_id INTEGER REFERENCES org_admins(id) ON DELETE SET NULL
+        );
         """)
+        if DATABASE_URL:
+            db.executescript("""
+            ALTER TABLE hives ADD COLUMN IF NOT EXISTS admin_id bigint REFERENCES org_admins(id) ON DELETE SET NULL;
+            ALTER TABLE hives ADD COLUMN IF NOT EXISTS is_public integer NOT NULL DEFAULT 0;
+            ALTER TABLE hives ALTER COLUMN user_id DROP NOT NULL;
+            ALTER TABLE plants ADD COLUMN IF NOT EXISTS admin_id bigint REFERENCES org_admins(id) ON DELETE SET NULL;
+            ALTER TABLE plants ALTER COLUMN user_id DROP NOT NULL;
+            ALTER TABLE risk_zones ADD COLUMN IF NOT EXISTS admin_id bigint REFERENCES org_admins(id) ON DELETE SET NULL;
+            ALTER TABLE risk_zones ALTER COLUMN user_id DROP NOT NULL;
+            CREATE TABLE IF NOT EXISTS password_reset_requests (
+              id text primary key, user_id bigint not null references users(id) on delete cascade,
+              status text not null default 'pending' check(status in ('pending','approved','rejected')),
+              created_at bigint not null, resolved_at bigint, admin_id bigint references org_admins(id) on delete set null
+            );
+            """)
         admin_password = os.environ.get("ECOBEE_ADMIN_PASSWORD", "")
         if os.environ.get("ECOBEE_ENV") == "production" and len(admin_password) < 12:
             raise RuntimeError("ECOBEE_ADMIN_PASSWORD must contain at least 12 characters in production")
@@ -147,6 +171,7 @@ def init_db():
                 db.execute("UPDATE org_admins SET password_hash=? WHERE id=?",(hash_password(password),weak["id"]))
                 db.execute("DELETE FROM org_sessions")
                 print(f"ECO Bee rotated insecure admin password. New password: {password}")
+        migrate_legacy_map_data(db)
         # Remove credentials and obsolete sessions previously stored by the demo UI.
         for key in ("accounts", "admins"):
             row=db.execute("SELECT value FROM kv_store WHERE scope='private' AND key=?",(key,)).fetchone()
@@ -161,6 +186,44 @@ def init_db():
         db.execute("DELETE FROM kv_store WHERE scope='private' AND key IN ('session','orgSession')")
         db.execute("DELETE FROM sessions WHERE expires_at<=?",(now_ms(),))
         db.execute("DELETE FROM org_sessions WHERE expires_at<=?",(now_ms(),))
+
+
+def migrate_legacy_map_data(db):
+    """One-way import from the former KV map store into the relational source of truth."""
+    admin=db.execute("SELECT id FROM org_admins ORDER BY id LIMIT 1").fetchone()
+    admin_id=admin["id"] if admin else None
+    rows=db.execute("SELECT key,value FROM kv_store WHERE scope='private' AND key LIKE 'myHives_%'").fetchall()
+    for row in rows:
+        phone=row["key"][len("myHives_"):];user=db.execute("SELECT id FROM users WHERE phone=?",(phone,)).fetchone()
+        if not user:continue
+        try:items=json.loads(row["value"])
+        except (ValueError,TypeError):continue
+        for item in items if isinstance(items,list) else []:
+            if not isinstance(item,dict):continue
+            item_id=str(item.get("backendId") or item.get("id") or new_id("hive"))
+            if db.execute("SELECT 1 FROM hives WHERE id=?",(item_id,)).fetchone():continue
+            species=item.get("species","meliponini");radius=float(item.get("radiusKm",SPECIES_RADIUS.get(species,.3)))
+            try:db.execute("INSERT INTO hives(id,user_id,admin_id,name,species,lat,lng,radius_km,note,is_public,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",(item_id,user["id"],None,str(item.get("name","รังผึ้ง"))[:150],species,float(item["lat"]),float(item["lng"]),radius,str(item.get("note",""))[:500],0,int(item.get("createdAt",now_ms()))))
+            except (KeyError,ValueError,TypeError):continue
+    for key,table in (("parkHives","hives"),("plants","plants"),("safetyZones","risk_zones")):
+        row=db.execute("SELECT value FROM kv_store WHERE scope='shared' AND key=?",(key,)).fetchone()
+        if not row:continue
+        try:items=json.loads(row["value"])
+        except (ValueError,TypeError):continue
+        for item in items if isinstance(items,list) else []:
+            if not isinstance(item,dict):continue
+            item_id=str(item.get("backendId") or item.get("id") or new_id(table.rstrip("s")))
+            if db.execute(f"SELECT 1 FROM {table} WHERE id=?",(item_id,)).fetchone():continue
+            owner=db.execute("SELECT id FROM users WHERE phone=?",(str(item.get("ownerPhone","")),)).fetchone()
+            try:
+                if table=="hives":
+                    species=item.get("species","meliponini")
+                    db.execute("INSERT INTO hives(id,user_id,admin_id,name,species,lat,lng,radius_km,note,is_public,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",(item_id,owner["id"] if owner else None,None if owner else admin_id,str(item.get("name","รังผึ้ง"))[:150],species,float(item["lat"]),float(item["lng"]),float(item.get("radiusKm",SPECIES_RADIUS.get(species,.3))),str(item.get("note",""))[:500],int(bool(item.get("public",False))),int(item.get("createdAt",now_ms()))))
+                elif table=="plants":
+                    db.execute("INSERT INTO plants(id,user_id,admin_id,plant_type,variety,months,geometry,created_at) VALUES(?,?,?,?,?,?,?,?)",(item_id,owner["id"] if owner else None,None if owner else admin_id,item["type"],str(item.get("variety","")),json.dumps(item.get("months",[])),json.dumps(item["geom"]),int(item.get("createdAt",now_ms()))))
+                else:
+                    db.execute("INSERT INTO risk_zones(id,user_id,admin_id,name,status,geometry,note,created_at) VALUES(?,?,?,?,?,?,?,?)",(item_id,owner["id"] if owner else None,None if owner else admin_id,str(item.get("name","พื้นที่")),item.get("status","danger"),json.dumps(item["geom"]),str(item.get("note","")),int(item.get("createdAt",now_ms()))))
+            except (KeyError,ValueError,TypeError):continue
 
 
 def now_ms(): return int(time.time() * 1000)
@@ -288,6 +351,24 @@ class API(SimpleHTTPRequestHandler):
         if key=="uiScale":return True
         return key.startswith((f"profile_{phone}",f"myHives_{phone}",f"seenAlerts_{phone}"))
 
+    @staticmethod
+    def map_payload(db, farmer_id=None):
+        hives=db.execute("""SELECT h.*,u.phone owner_phone,u.name owner_name,u.farm owner_farm,
+          a.name admin_name FROM hives h LEFT JOIN users u ON u.id=h.user_id
+          LEFT JOIN org_admins a ON a.id=h.admin_id ORDER BY h.created_at DESC""").fetchall()
+        plants=db.execute("""SELECT p.*,u.phone owner_phone,u.name owner_name,u.farm owner_farm,
+          a.name admin_name FROM plants p LEFT JOIN users u ON u.id=p.user_id
+          LEFT JOIN org_admins a ON a.id=p.admin_id ORDER BY p.created_at DESC""").fetchall()
+        zones=db.execute("""SELECT z.*,u.phone owner_phone,u.name owner_name,u.farm owner_farm,
+          a.name admin_name FROM risk_zones z LEFT JOIN users u ON u.id=z.user_id
+          LEFT JOIN org_admins a ON a.id=z.admin_id ORDER BY z.created_at DESC""").fetchall()
+        visible_hives=[x for x in hives if farmer_id is None or x["user_id"]==farmer_id or bool(x["is_public"])]
+        return {
+          "hives":[{**dict(x),"mine":farmer_id is not None and x["user_id"]==farmer_id} for x in visible_hives],
+          "plants":[{**dict(x),"months":json.loads(x["months"]),"geometry":json.loads(x["geometry"]),"mine":farmer_id is not None and x["user_id"]==farmer_id} for x in plants],
+          "risk_zones":[{**dict(x),"geometry":json.loads(x["geometry"]),"mine":farmer_id is not None and x["user_id"]==farmer_id} for x in zones]
+        }
+
     def validate_shared_update(self, db, role, actor, key, value):
         if role=="org":return
         try:new=json.loads(value)
@@ -339,6 +420,11 @@ class API(SimpleHTTPRequestHandler):
                     if not u:return
                     rows=db.execute("SELECT * FROM hives WHERE user_id=? ORDER BY created_at DESC",(u["id"],)).fetchall()
                 return self.json_response([dict(x) for x in rows])
+            if path == "/api/map-data":
+                with connect() as db:
+                    role,actor=self.actor(db)
+                    if not actor:return self.json_response({"error":"unauthorized"},401)
+                    return self.json_response(self.map_payload(db,actor["id"] if role=="farmer" else None))
             if path == "/api/org/farmers":
                 with connect() as db:
                     if not self.org_user(db): return self.json_response({"error":"unauthorized"},401)
@@ -349,6 +435,22 @@ class API(SimpleHTTPRequestHandler):
                     if not self.org_user(db):return self.json_response({"error":"unauthorized"},401)
                     rows=db.execute("SELECT id,email,name,created_at FROM org_admins ORDER BY created_at").fetchall()
                 return self.json_response([dict(x) for x in rows])
+            if path == "/api/org/password-reset-requests":
+                with connect() as db:
+                    if not self.org_user(db):return self.json_response({"error":"unauthorized"},401)
+                    rows=db.execute("""SELECT r.id,r.status,r.created_at,r.resolved_at,u.phone,u.name,u.farm
+                      FROM password_reset_requests r JOIN users u ON u.id=r.user_id
+                      ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END,r.created_at DESC""").fetchall()
+                return self.json_response([dict(x) for x in rows])
+            if path.startswith("/api/public/farmers/"):
+                phone=unquote(path[len("/api/public/farmers/"):])
+                with connect() as db:
+                    row=db.execute("""SELECT u.phone,u.name,u.farm,u.created_at,coalesce(v.safety,0) safety,
+                      coalesce(v.standard,0) standard,(SELECT count(*) FROM hives h WHERE h.user_id=u.id) hive_count,
+                      (SELECT count(*) FROM harvest_batches b JOIN hives h ON h.id=b.hive_id WHERE h.user_id=u.id) lot_count
+                      FROM users u LEFT JOIN user_verifications v ON v.user_id=u.id WHERE u.phone=?""",(phone,)).fetchone()
+                if not row:return self.json_response({"error":"not_found"},404)
+                return self.json_response({**dict(row),"phone":phone[:3]+"****"+phone[-3:],"verify":{"safety":bool(row["safety"]),"standard":bool(row["standard"])}})
             if path.startswith("/api/trace/"):
                 code=unquote(path.rsplit("/",1)[1])
                 with connect() as db:
@@ -387,6 +489,13 @@ class API(SimpleHTTPRequestHandler):
                     if scope=="shared":self.validate_shared_update(db,role,actor,key,value)
                     db.execute("INSERT INTO kv_store(scope,key,value,updated_at) VALUES(?,?,?,?) ON CONFLICT(scope,key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at",(scope,key,value,now_ms()))
                 return self.json_response({"ok":True})
+            if path.startswith("/api/org/hives/"):
+                hive_id=unquote(path[len("/api/org/hives/"):]);data=self.body()
+                with connect() as db:
+                    admin=self.org_user(db)
+                    if not admin:return self.json_response({"error":"unauthorized"},401)
+                    cur=db.execute("UPDATE hives SET is_public=? WHERE id=? AND admin_id=?",(int(bool(data.get("is_public"))),hive_id,admin["id"]))
+                return self.json_response({"ok":True}) if cur.rowcount else self.json_response({"error":"not_found"},404)
             return self.json_response({"error":"not_found"},404)
         except PermissionError as e:self.json_response({"error":str(e)},403)
         except (ValueError,TypeError,json.JSONDecodeError) as e:self.json_response({"error":str(e)},400)
@@ -431,6 +540,14 @@ class API(SimpleHTTPRequestHandler):
                     if db.execute("SELECT count(*) n FROM org_admins").fetchone()["n"]<=1:return self.json_response({"error":"last_admin"},409)
                     cur=db.execute("DELETE FROM org_admins WHERE id=?",(admin_id,))
                 return self.json_response({"ok":True}) if cur.rowcount else self.json_response({"error":"not_found"},404)
+            for prefix,table in (("/api/org/hives/","hives"),("/api/org/plants/","plants"),("/api/org/risk-zones/","risk_zones")):
+                if path.startswith(prefix):
+                    item_id=unquote(path[len(prefix):])
+                    with connect() as db:
+                        admin=self.org_user(db)
+                        if not admin:return self.json_response({"error":"unauthorized"},401)
+                        cur=db.execute(f"DELETE FROM {table} WHERE id=?",(item_id,))
+                    return self.json_response({"ok":True}) if cur.rowcount else self.json_response({"error":"not_found"},404)
             for prefix,table in (("/api/hives/","hives"),("/api/plants/","plants"),("/api/risk-zones/","risk_zones")):
                 if path.startswith(prefix):
                     item_id=unquote(path[len(prefix):])
@@ -469,6 +586,15 @@ class API(SimpleHTTPRequestHandler):
                     if not u["password_hash"].startswith("pbkdf2_sha256$"):db.execute("UPDATE users SET password_hash=? WHERE id=?",(hash_password(str(data.get("password",""))),u["id"]))
                     record_login_success(address);token=secrets.token_urlsafe(32); db.execute("INSERT INTO sessions VALUES(?,?,?)",(token_digest(token),u["id"],now_ms()+SESSION_MS))
                 return self.json_response({"token":token,"user":{"phone":u["phone"],"name":u["name"],"farm":u["farm"]}})
+            if path == "/api/auth/password-reset-requests":
+                phone=str(data.get("phone","")).strip()
+                if not valid_phone(phone):return self.json_response({"error":"invalid_phone"},400)
+                with connect() as db:
+                    u=db.execute("SELECT id FROM users WHERE phone=?",(phone,)).fetchone()
+                    if u and not db.execute("SELECT 1 FROM password_reset_requests WHERE user_id=? AND status='pending'",(u["id"],)).fetchone():
+                        db.execute("INSERT INTO password_reset_requests(id,user_id,status,created_at) VALUES(?,?,?,?)",(new_id("reset"),u["id"],"pending",now_ms()))
+                # Same response for existing and unknown phone numbers to prevent account enumeration.
+                return self.json_response({"ok":True,"message":"request_received"},202)
             if path == "/api/org/auth/login":
                 address=self.client_address[0]
                 if rate_limited(address):return self.json_response({"error":"too_many_attempts"},429)
@@ -501,6 +627,21 @@ class API(SimpleHTTPRequestHandler):
                     cur=db.execute("UPDATE users SET password_hash=? WHERE phone=?",(hash_password(password),phone))
                     db.execute("DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE phone=?)",(phone,))
                 return self.json_response({"ok":True}) if cur.rowcount else self.json_response({"error":"not_found"},404)
+            if path.startswith("/api/org/password-reset-requests/"):
+                request_id=unquote(path.rsplit("/",1)[1]);action=data.get("action")
+                if action not in ("approve","reject"):return self.json_response({"error":"invalid_action"},400)
+                password=str(data.get("password",""))
+                if action=="approve" and not valid_text(password,8,128):return self.json_response({"error":"weak_password"},400)
+                with connect() as db:
+                    admin=self.org_user(db)
+                    if not admin:return self.json_response({"error":"unauthorized"},401)
+                    req=db.execute("SELECT * FROM password_reset_requests WHERE id=? AND status='pending'",(request_id,)).fetchone()
+                    if not req:return self.json_response({"error":"not_found"},404)
+                    if action=="approve":
+                        db.execute("UPDATE users SET password_hash=? WHERE id=?",(hash_password(password),req["user_id"]))
+                        db.execute("DELETE FROM sessions WHERE user_id=?",(req["user_id"],))
+                    db.execute("UPDATE password_reset_requests SET status=?,resolved_at=?,admin_id=? WHERE id=?",("approved" if action=="approve" else "rejected",now_ms(),admin["id"],request_id))
+                return self.json_response({"ok":True})
             if path.startswith("/api/org/farmers/") and path.endswith("/profile"):
                 phone=unquote(path.split("/")[4]);name=data.get("name");farm=data.get("farm")
                 if not valid_text(name,2,100) or not valid_text(farm,2,150):return self.json_response({"error":"invalid_profile"},400)
@@ -532,6 +673,33 @@ class API(SimpleHTTPRequestHandler):
                     if not a:return self.json_response({"error":"unauthorized"},401)
                     db.execute("UPDATE org_admins SET name=? WHERE id=?",(name.strip(),a["id"]))
                 return self.json_response({"ok":True,"name":name.strip()})
+            if path.startswith("/api/org/hives/"):
+                hive_id=unquote(path[len("/api/org/hives/"):]);name=data.get("name");radius=float(data.get("radius_km",0))
+                if not valid_text(name,1,150) or radius<=0 or radius>20:return self.json_response({"error":"invalid_hive"},400)
+                with connect() as db:
+                    if not self.org_user(db):return self.json_response({"error":"unauthorized"},401)
+                    cur=db.execute("UPDATE hives SET name=?,radius_km=? WHERE id=?",(name.strip(),radius,hive_id))
+                return self.json_response({"ok":True}) if cur.rowcount else self.json_response({"error":"not_found"},404)
+            if path.startswith("/api/org/") and path in ("/api/org/hives","/api/org/plants","/api/org/risk-zones"):
+                with connect() as db:
+                    admin=self.org_user(db)
+                    if not admin:return self.json_response({"error":"unauthorized"},401)
+                    if path=="/api/org/hives":
+                        species=data.get("species")
+                        if species not in SPECIES_RADIUS:return self.json_response({"error":"invalid_species"},400)
+                        hid=new_id("hive");lat,lng=float(data["lat"]),float(data["lng"])
+                        db.execute("INSERT INTO hives(id,user_id,admin_id,name,species,lat,lng,radius_km,note,is_public,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",(hid,None,admin["id"],str(data.get("name","รังสาธิต"))[:150],species,lat,lng,SPECIES_RADIUS[species],str(data.get("note",""))[:500],int(bool(data.get("is_public",True))),now_ms()))
+                        return self.json_response({"id":hid,"radius_km":SPECIES_RADIUS[species]},201)
+                    if path=="/api/org/plants":
+                        geometry=data["geometry"];geometry_center(geometry);pid=new_id("plant")
+                        months=sorted(set(int(m) for m in data.get("months",[]) if 1<=int(m)<=12))
+                        db.execute("INSERT INTO plants(id,user_id,admin_id,plant_type,variety,months,geometry,created_at) VALUES(?,?,?,?,?,?,?,?)",(pid,None,admin["id"],data["plant_type"],data.get("variety",""),json.dumps(months),json.dumps(geometry),now_ms()))
+                        return self.json_response({"id":pid},201)
+                    geometry=data["geometry"];geometry_center(geometry);status=data.get("status")
+                    if status not in ("safe","danger"):return self.json_response({"error":"invalid_status"},400)
+                    zid=new_id("zone")
+                    db.execute("INSERT INTO risk_zones(id,user_id,admin_id,name,status,geometry,note,created_at) VALUES(?,?,?,?,?,?,?,?)",(zid,None,admin["id"],data["name"],status,json.dumps(geometry),data.get("note",""),now_ms()))
+                    return self.json_response({"id":zid},201)
             with connect() as db:
                 u=self.require_user(db)
                 if not u:return
@@ -542,17 +710,17 @@ class API(SimpleHTTPRequestHandler):
                     lat,lng=float(data["lat"]),float(data["lng"])
                     if not -90<=lat<=90 or not -180<=lng<=180:raise ValueError("invalid_coordinates")
                     if not valid_text(data.get("name","รังผึ้ง"),1,150):raise ValueError("invalid_name")
-                    db.execute("INSERT INTO hives VALUES(?,?,?,?,?,?,?,?,?)",(hid,u["id"],data.get("name","รังผึ้ง").strip(),species,lat,lng,radius,str(data.get("note",""))[:500],now_ms()))
+                    db.execute("INSERT INTO hives(id,user_id,admin_id,name,species,lat,lng,radius_km,note,is_public,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",(hid,u["id"],None,data.get("name","รังผึ้ง").strip(),species,lat,lng,radius,str(data.get("note",""))[:500],0,now_ms()))
                     return self.json_response({"id":hid,"radius_km":radius},201)
                 if path == "/api/plants":
                     months=sorted(set(int(m) for m in data.get("months",[]) if 1<=int(m)<=12))
                     geometry=data["geometry"]; geometry_center(geometry); pid=new_id("plant")
-                    db.execute("INSERT INTO plants VALUES(?,?,?,?,?,?,?)",(pid,u["id"],data["plant_type"],data.get("variety",""),json.dumps(months),json.dumps(geometry),now_ms()))
+                    db.execute("INSERT INTO plants(id,user_id,admin_id,plant_type,variety,months,geometry,created_at) VALUES(?,?,?,?,?,?,?,?)",(pid,u["id"],None,data["plant_type"],data.get("variety",""),json.dumps(months),json.dumps(geometry),now_ms()))
                     return self.json_response({"id":pid},201)
                 if path == "/api/risk-zones":
                     geometry=data["geometry"]; geometry_center(geometry); status=data.get("status")
                     if status not in ("safe","danger"):return self.json_response({"error":"invalid_status"},400)
-                    zid=new_id("zone"); db.execute("INSERT INTO risk_zones VALUES(?,?,?,?,?,?,?)",(zid,u["id"],data["name"],status,json.dumps(geometry),data.get("note",""),now_ms()))
+                    zid=new_id("zone"); db.execute("INSERT INTO risk_zones(id,user_id,admin_id,name,status,geometry,note,created_at) VALUES(?,?,?,?,?,?,?,?)",(zid,u["id"],None,data["name"],status,json.dumps(geometry),data.get("note",""),now_ms()))
                     return self.json_response({"id":zid},201)
                 if path == "/api/assess":
                     lat,lng=float(data["lat"]),float(data["lng"]); species=data.get("species","meliponini"); radius=SPECIES_RADIUS.get(species,float(data.get("radius_km",.3)))
