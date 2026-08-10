@@ -49,7 +49,11 @@ class PostgresConnection:
         self.raw.__enter__()
         return self
     def __exit__(self, kind, value, traceback):return self.raw.__exit__(kind,value,traceback)
-    def execute(self, sql, params=()):return self.raw.execute(sql.replace("?","%s"),params)
+    def execute(self, sql, params=()):
+        # psycopg treats every percent sign in the query text as part of its
+        # placeholder syntax. Escape literal SQL wildcards before translating
+        # the portable qmark placeholders used throughout this application.
+        return self.raw.execute(sql.replace("%", "%%").replace("?", "%s"), params)
     def executescript(self, sql):return self.raw.execute(sql)
 
 

@@ -39,6 +39,16 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(server.geometry_center({"type":"point","coords":[13,99]}),(13.0,99.0))
         self.assertEqual(server.geometry_center({"type":"polygon","coords":[[10,20],[12,24]]}),(11,22))
 
+    def test_postgres_adapter_escapes_literal_percent(self):
+        class FakeRaw:
+            def execute(self, sql, params):
+                return sql, params
+        adapter=server.PostgresConnection.__new__(server.PostgresConnection)
+        adapter.raw=FakeRaw()
+        sql,params=adapter.execute("SELECT 1 WHERE key LIKE 'myHives_%' AND scope=?",("private",))
+        self.assertEqual(sql,"SELECT 1 WHERE key LIKE 'myHives_%%' AND scope=%s")
+        self.assertEqual(params,("private",))
+
     def test_complete_trace_workflow(self):
         _,auth=self.request("POST","/api/auth/register",{"phone":"0899999999","password":"safe-pass","name":"ผู้ทดสอบ","farm":"ฟาร์มทดสอบ"})
         token=auth["token"]
