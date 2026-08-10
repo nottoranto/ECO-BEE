@@ -47,7 +47,25 @@ class BackendTests(unittest.TestCase):
         _,trace=self.request("GET","/api/trace/"+batch["batch_code"])
         self.assertEqual(trace["farm"],"ฟาร์มทดสอบ")
         self.assertEqual(trace["hive_name"],"รังทดสอบ")
-        self.assertEqual(trace["lat"],13.5)
+        serialized=json.dumps(trace)
+        for secret in ('"lat"','"lng"','from_lat','from_lng','to_lat','to_lng','hive_id'):
+            self.assertNotIn(secret,serialized)
+        self.assertIn("environment",trace)
+
+    def test_public_trace_uses_real_aggregates_without_coordinates(self):
+        _,auth=self.request("POST","/api/auth/register",{"phone":"0891111111","password":"safe-pass","name":"ผู้ทดสอบสิ่งแวดล้อม","farm":"ฟาร์มข้อมูลจริง"})
+        token=auth["token"]
+        _,hive=self.request("POST","/api/hives",{"name":"รังข้อมูลจริง","species":"cerana","lat":13.5,"lng":99.8},token)
+        self.request("POST","/api/plants",{"plant_type":"longan","variety":"อีดอ","months":[1,2,3],"geometry":{"type":"point","coords":[13.501,99.801]}},token)
+        self.request("POST","/api/risk-zones",{"name":"พื้นที่เสี่ยงจริง","status":"danger","geometry":{"type":"point","coords":[13.502,99.802]}},token)
+        self.request("POST","/api/movements",{"hive_id":hive["id"],"lat":13.503,"lng":99.803,"reason":"ย้ายตามฤดู"},token)
+        _,batch=self.request("POST","/api/harvests",{"hive_id":hive["id"],"product":"น้ำผึ้งลำไย","quantity_kg":2},token)
+        _,trace=self.request("GET","/api/trace/"+batch["batch_code"])
+        self.assertEqual(trace["environment"]["plants"][0]["type"],"longan")
+        self.assertEqual(trace["environment"]["plants"][0]["count"],1)
+        self.assertEqual(trace["environment"]["danger_zone_count"],1)
+        self.assertEqual(trace["environment"]["food_months"],[1,2,3])
+        self.assertEqual(trace["movements"],[{"reason":"ย้ายตามฤดู","checked_in_at":trace["movements"][0]["checked_in_at"]}])
 
     def test_organization_login(self):
         status,data=self.request("POST","/api/org/auth/login",{"email":"admin@ecobee.go.th","password":"test-admin-password"})

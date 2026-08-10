@@ -16,7 +16,10 @@
 <style>
   body { font-family:'Prompt',sans-serif; }
   .font-display { font-family:'Kanit',sans-serif; }
-  #static-map { height:220px; width:100%; background:#e5e7eb; background-size:cover; background-position:center; pointer-events:none; }
+  #environment-diagram { height:300px; width:100%; background:#fff; position:relative; overflow:hidden; }
+  .env-ring { position:absolute; left:50%; top:46%; transform:translate(-50%,-50%); border:1.5px dashed #fcd34d; border-radius:9999px; }
+  .env-node { position:absolute; transform:translate(-50%,-50%); min-width:68px; max-width:92px; text-align:center; }
+  .env-node-icon { width:42px; height:42px; margin:auto; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:20px; border:1px solid #e5e7eb; background:#fff; box-shadow:0 5px 16px rgba(15,23,42,.08); }
   .live-dot { width:7px; height:7px; border-radius:9999px; background:#10b981; animation: livePulse 1.6s ease-in-out infinite; }
   @keyframes livePulse { 0%,100%{ box-shadow:0 0 0 0 rgba(16,185,129,.55); } 70%{ box-shadow:0 0 0 5px rgba(16,185,129,0); } }
   @keyframes fadeInUp { from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);} }
@@ -93,14 +96,16 @@
     <p id="product-quantity" class="text-gray-500 text-xs mt-1">ปริมาณ —</p>
   </section>
 
-  <!-- STATIC SATELLITE IMAGE (non-interactive, no labels) -->
+  <!-- PRIVACY-SAFE ENVIRONMENT DIAGRAM: real aggregate data, symbolic positions -->
   <section class="trace-detail hidden animate-fade-in bg-white rounded-3xl border border-gray-200 shadow-sm p-6">
     <h2 class="font-display font-bold text-base text-gray-800 mb-1 flex items-center gap-2.5">
-      <span class="w-8 h-8 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center"><i class="fa-solid fa-satellite text-sm"></i></span>
-      ภาพถ่ายดาวเทียมแหล่งที่มา
+      <span class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center"><i class="fa-solid fa-leaf text-sm"></i></span>
+      สภาพแวดล้อมบริเวณแหล่งผลิต
     </h2>
-    <p class="text-gray-400 text-xs mb-4 ml-[42px]">ตำแหน่งโดยประมาณของแหล่งผลิต</p>
-    <div id="static-map" class="rounded-2xl overflow-hidden border border-gray-100" role="img" aria-label="ภาพถ่ายดาวเทียมของแหล่งที่มา"></div>
+    <p class="text-gray-400 text-xs mb-4 ml-[42px]">สร้างจากข้อมูลจริงที่เกษตรกรและหน่วยงานบันทึก โดยไม่เปิดเผยพิกัด</p>
+    <div id="environment-diagram" class="rounded-2xl border border-gray-100" role="img" aria-label="แผนภาพสรุปสภาพแวดล้อมรอบรังโดยไม่เปิดเผยตำแหน่งจริง"></div>
+    <div id="environment-summary" class="grid grid-cols-2 gap-2.5 mt-3"></div>
+    <p class="mt-3 text-[10px] leading-relaxed text-gray-400 bg-gray-50 rounded-xl px-3 py-2"><i class="fa-solid fa-lock mr-1 text-amber-500"></i>ตำแหน่งรังและไอคอนในภาพเป็นการจัดวางเชิงสัญลักษณ์ ไม่ใช่พิกัด ทิศทาง หรือระยะจริง</p>
   </section>
 
   <!-- FOOD PLANT LIST -->
@@ -182,19 +187,27 @@ startLiveClock();
       document.getElementById('route-source').textContent=data.farm+' · '+data.hive_name;
       document.getElementById('route-scan-date').textContent=new Date().toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'});
       const moves=data.movements||[],timeline=document.getElementById('movement-timeline');
-      timeline.innerHTML=moves.length?moves.map(function(move,index){return '<div class="flex items-start gap-3 px-4 py-3.5 rounded-2xl bg-sky-50 border border-sky-100"><span class="w-9 h-9 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-truck-fast text-sm"></i></span><div class="min-w-0"><p class="text-[11px] text-gray-400">ย้ายรังครั้งที่ '+(index+1)+' · '+new Date(move.checked_in_at).toLocaleString('th-TH')+'</p><p class="text-sm font-semibold text-gray-800">'+escapeHtml(move.reason||'อัปเดตตำแหน่งรัง')+'</p><p class="text-[10px] text-gray-400 mt-0.5">ตำแหน่งโดยประมาณ '+Number(move.to_lat).toFixed(4)+', '+Number(move.to_lng).toFixed(4)+'</p></div></div>';}).join(''):'<p class="text-xs text-gray-400 px-1">ยังไม่มีการย้ายรังหลังขึ้นทะเบียน</p>';
+      timeline.innerHTML=moves.length?moves.map(function(move,index){return '<div class="flex items-start gap-3 px-4 py-3.5 rounded-2xl bg-sky-50 border border-sky-100"><span class="w-9 h-9 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-truck-fast text-sm"></i></span><div class="min-w-0"><p class="text-[11px] text-gray-400">ย้ายรังครั้งที่ '+(index+1)+' · '+new Date(move.checked_in_at).toLocaleString('th-TH')+'</p><p class="text-sm font-semibold text-gray-800">'+escapeHtml(move.reason||'อัปเดตตำแหน่งรัง')+'</p><p class="text-[10px] text-gray-400 mt-0.5"><i class="fa-solid fa-lock mr-1"></i>ปกปิดตำแหน่งเพื่อความปลอดภัยของรัง</p></div></div>';}).join(''):'<p class="text-xs text-gray-400 px-1">ยังไม่มีการย้ายรังหลังขึ้นทะเบียน</p>';
       document.getElementById('qr-holder').innerHTML='';
       new QRCode(document.getElementById('qr-holder'),{text:location.origin+'/trace?code='+encodeURIComponent(data.batch_code),width:150,height:150,colorDark:'#1f2937',colorLight:'#fff'});
       document.getElementById('qr-caption').textContent='รหัส lot '+data.batch_code+' · เก็บเกี่ยว '+new Date(data.harvested_at).toLocaleDateString('th-TH');
-      const plantList=document.getElementById('plant-list'),nearby=data.nearby_plants||[];
-      plantList.innerHTML=nearby.length?nearby.map(function(item){const plant=PLANT_CATALOG[item.type]||{label:item.type,icon:'🌿'};return '<div class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl border border-gray-100"><span class="text-lg">'+plant.icon+'</span><span class="flex-1 min-w-0"><span class="block text-sm font-semibold text-gray-700 truncate">'+escapeHtml(plant.label+(item.variety?' · พันธุ์'+item.variety:''))+'</span><span class="block text-[10px] text-gray-400">ห่าง '+Number(item.distance_km).toFixed(2)+' กม.</span></span></div>';}).join(''):'<p class="text-xs text-gray-400">ยังไม่มีข้อมูลพืชอาหารที่ยืนยันในรัศมี 2 กม.</p>';
-      const map=document.getElementById('static-map'),z=15;
-      const x=Math.floor((data.lng+180)/360*Math.pow(2,z));
-      const y=Math.floor((1-Math.log(Math.tan(data.lat*Math.PI/180)+1/Math.cos(data.lat*Math.PI/180))/Math.PI)/2*Math.pow(2,z));
-      map.innerHTML='<img alt="แหล่งผลิต" style="width:100%;height:100%;object-fit:cover" src="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/'+z+'/'+y+'/'+x+'">';
+      const plantList=document.getElementById('plant-list'),env=data.environment||{},nearby=env.plants||[];
+      plantList.innerHTML=nearby.length?nearby.map(function(item){const plant=PLANT_CATALOG[item.type]||{label:item.type,icon:'🌿'};return '<div class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl border border-gray-100"><span class="text-lg">'+plant.icon+'</span><span class="flex-1 min-w-0"><span class="block text-sm font-semibold text-gray-700 truncate">'+escapeHtml(plant.label+(item.variety?' · พันธุ์'+item.variety:''))+'</span><span class="block text-[10px] text-gray-400">บันทึกในรัศมีหาอาหาร '+item.count+' จุด</span></span></div>';}).join(''):'<p class="text-xs text-gray-400">ยังไม่มีข้อมูลพืชอาหารที่ยืนยันในรัศมีหาอาหารของรังนี้</p>';
+      renderEnvironment(data);
       message.className='text-xs mt-3 text-emerald-600'; message.textContent='✓ ตรวจสอบข้อมูลจากฐานข้อมูลแล้ว';
     }catch(error){document.querySelectorAll('.trace-detail').forEach(function(section){section.classList.add('hidden');});message.className='text-xs mt-3 text-rose-600';message.textContent=error.message;}
   }
+  function renderEnvironment(data){
+    const env=data.environment||{},plants=(env.plants||[]).slice(0,6),diagram=document.getElementById('environment-diagram');
+    let html='<div class="env-ring" style="width:230px;height:230px"></div><div class="env-ring" style="width:150px;height:150px;opacity:.55"></div>';
+    plants.forEach(function(item,index){const plant=PLANT_CATALOG[item.type]||{label:item.type,icon:'🌿'},angle=(-90+(360/Math.max(plants.length,1))*index)*Math.PI/180,x=50+35*Math.cos(angle),y=46+36*Math.sin(angle);html+='<div class="env-node" style="left:'+x+'%;top:'+y+'%"><div class="env-node-icon">'+plant.icon+'</div><p class="text-[10px] font-semibold text-gray-600 mt-1 truncate">'+escapeHtml(plant.label)+' ×'+item.count+'</p></div>';});
+    html+='<div class="env-node" style="left:50%;top:46%;z-index:2"><div class="env-node-icon" style="background:#f59e0b;color:white;border-color:#f59e0b"><svg style="width:23px;height:23px" fill="currentColor"><use href="#icon-hive"/></svg></div><p class="text-[10px] font-bold text-amber-700 mt-1">รังต้นทาง</p></div>';
+    if(!plants.length)html+='<p class="absolute left-1/2 top-[76%] -translate-x-1/2 text-[10px] text-gray-400 whitespace-nowrap">ยังไม่มีพืชอาหารที่ยืนยัน</p>';
+    diagram.innerHTML=html;
+    const danger=Number(env.danger_zone_count||0),safe=Number(env.safe_zone_count||0),coverage=Number(env.coverage_month_count||0);
+    document.getElementById('environment-summary').innerHTML='<div class="rounded-xl bg-emerald-50 px-3 py-2.5"><p class="text-[10px] text-gray-500">พืชอาหารจริง</p><p class="text-sm font-bold text-emerald-700">'+Number(env.plant_count||0)+' จุด · '+nearbyLabel(plants.length)+' ชนิด</p></div><div class="rounded-xl bg-amber-50 px-3 py-2.5"><p class="text-[10px] text-gray-500">รัศมีหาอาหาร</p><p class="text-sm font-bold text-amber-700">'+Number(data.radius_km).toLocaleString('th-TH')+' กม.</p></div><div class="rounded-xl bg-sky-50 px-3 py-2.5"><p class="text-[10px] text-gray-500">ความต่อเนื่องอาหาร</p><p class="text-sm font-bold text-sky-700">'+coverage+' จาก 12 เดือน</p></div><div class="rounded-xl '+(danger?'bg-rose-50':'bg-emerald-50')+' px-3 py-2.5"><p class="text-[10px] text-gray-500">พื้นที่ในรัศมี</p><p class="text-sm font-bold '+(danger?'text-rose-700':'text-emerald-700')+'">ปลอดภัย '+safe+' · เสี่ยง '+danger+'</p></div>';
+  }
+  function nearbyLabel(count){return Number(count).toLocaleString('th-TH');}
   form.addEventListener('submit',function(event){event.preventDefault();lookup(input.value.trim());});
   async function loadFarmer(phone){
     message.className='text-xs mt-3 text-gray-500';message.textContent='กำลังตรวจสอบโปรไฟล์…';

@@ -454,15 +454,35 @@ class API(SimpleHTTPRequestHandler):
             if path.startswith("/api/trace/"):
                 code=unquote(path.rsplit("/",1)[1])
                 with connect() as db:
-                    batch=db.execute("SELECT b.*,h.name hive_name,h.species,h.lat,h.lng,u.farm,u.name owner FROM harvest_batches b JOIN hives h ON h.id=b.hive_id JOIN users u ON u.id=h.user_id WHERE batch_code=?",(code,)).fetchone()
+                    batch=db.execute("""SELECT b.*,h.name hive_name,h.species,h.lat,h.lng,h.radius_km,
+                      u.farm,u.name owner,coalesce(v.safety,0) safety,coalesce(v.standard,0) standard
+                      FROM harvest_batches b JOIN hives h ON h.id=b.hive_id JOIN users u ON u.id=h.user_id
+                      LEFT JOIN user_verifications v ON v.user_id=u.id WHERE batch_code=?""",(code,)).fetchone()
                     if not batch:return self.json_response({"error":"not_found"},404)
-                    moves=db.execute("SELECT * FROM movements WHERE hive_id=? ORDER BY checked_in_at",(batch["hive_id"],)).fetchall()
-                    plant_rows=db.execute("SELECT plant_type,variety,geometry FROM plants").fetchall()
-                nearby=[]
+                    moves=db.execute("SELECT reason,checked_in_at FROM movements WHERE hive_id=? ORDER BY checked_in_at",(batch["hive_id"],)).fetchall()
+                    plant_rows=db.execute("SELECT plant_type,variety,months,geometry FROM plants").fetchall()
+                    zone_rows=db.execute("SELECT status,geometry FROM risk_zones").fetchall()
+                radius=float(batch["radius_km"]);plant_groups={};food_months=set()
                 for plant in plant_rows:
                     plat,plng=geometry_center(json.loads(plant["geometry"]));distance=haversine(batch["lat"],batch["lng"],plat,plng)
-                    if distance<=2:nearby.append({"type":plant["plant_type"],"variety":plant["variety"],"distance_km":round(distance,3)})
-                out=dict(batch); out.pop("metadata",None); out["movements"]=[dict(x) for x in moves];out["nearby_plants"]=nearby
+                    if distance<=radius:
+                        key=(plant["plant_type"],plant["variety"]);plant_groups[key]=plant_groups.get(key,0)+1
+                        food_months.update(json.loads(plant["months"]))
+                zone_counts={"safe":0,"danger":0}
+                for zone in zone_rows:
+                    zlat,zlng=geometry_center(json.loads(zone["geometry"]))
+                    if haversine(batch["lat"],batch["lng"],zlat,zlng)<=radius:zone_counts[zone["status"]]+=1
+                out={
+                  "batch_code":batch["batch_code"],"product":batch["product"],"harvested_at":batch["harvested_at"],
+                  "quantity_kg":batch["quantity_kg"],"hive_name":batch["hive_name"],"species":batch["species"],
+                  "farm":batch["farm"],"owner":batch["owner"],"radius_km":radius,
+                  "verification":{"safety":bool(batch["safety"]),"standard":bool(batch["standard"])},
+                  "movements":[dict(x) for x in moves],
+                  "environment":{"plants":[{"type":k[0],"variety":k[1],"count":count} for k,count in sorted(plant_groups.items())],
+                    "plant_count":sum(plant_groups.values()),"safe_zone_count":zone_counts["safe"],
+                    "danger_zone_count":zone_counts["danger"],"food_months":sorted(food_months),
+                    "coverage_month_count":len(food_months)}
+                }
                 return self.json_response(out)
             return self.json_response({"error":"not_found"},404)
         except (ValueError, json.JSONDecodeError) as e: self.json_response({"error":str(e)},400)
