@@ -20,7 +20,7 @@
 window.storage = window.storage || {
   async get(key, shared) {
     const scope = shared ? 'shared' : 'private';
-    const token=sessionStorage.getItem('ecobee_farmer_token')||'';
+    const token=localStorage.getItem('ecobee_farmer_token')||'';
     const res = await fetch('/api/storage/' + scope + '/' + encodeURIComponent(key),{headers:{'Authorization':'Bearer '+token}});
     if (res.status === 404) return null;
     if (!res.ok) throw new Error('storage read failed');
@@ -29,7 +29,7 @@ window.storage = window.storage || {
   async set(key, value, shared) {
     const scope = shared ? 'shared' : 'private';
     const res = await fetch('/api/storage/' + scope + '/' + encodeURIComponent(key), {
-      method: 'PUT', headers: {'Content-Type':'application/json','Authorization':'Bearer '+(sessionStorage.getItem('ecobee_farmer_token')||'')},
+      method: 'PUT', headers: {'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('ecobee_farmer_token')||'')},
       body: JSON.stringify({value:value})
     });
     if (!res.ok) throw new Error('storage write failed');
@@ -280,9 +280,9 @@ async function api(path, options){
 
 async function boot(){
   startLiveClock();
-  const token=sessionStorage.getItem('ecobee_farmer_token');
+  const token=localStorage.getItem('ecobee_farmer_token');
   if(token){
-    try{const response=await fetch('/api/auth/me',{headers:{Authorization:'Bearer '+token}});if(!response.ok)throw new Error();const data=await response.json();session={phone:data.user.phone,token:token};profile={name:data.user.name,farm:data.user.farm};await refreshCatalog();uiScale=(await sget('uiScale',false))||1;applyUiScale(uiScale);await enterApp();return;}catch(e){sessionStorage.removeItem('ecobee_farmer_token');}
+    try{const response=await fetch('/api/auth/me',{headers:{Authorization:'Bearer '+token}});if(!response.ok)throw new Error();const data=await response.json();session={phone:data.user.phone,token:token};profile={name:data.user.name,farm:data.user.farm};await refreshCatalog();uiScale=(await sget('uiScale',false))||1;applyUiScale(uiScale);await enterApp();return;}catch(e){localStorage.removeItem('ecobee_farmer_token');}
   }
   applyUiScale(1);renderAuth('login');
 }
@@ -336,7 +336,7 @@ async function doLogin(){
     if(!phone || !pass){ showToast('info','กรอกไม่ครบ','กรุณากรอกเบอร์โทรและรหัสผ่าน'); return; }
     const auth=await api('/api/auth/login',{method:'POST',body:JSON.stringify({phone:phone,password:pass})});
     session = { phone:phone, token:auth.token };
-    sessionStorage.setItem('ecobee_farmer_token',auth.token);
+    localStorage.setItem('ecobee_farmer_token',auth.token);
     await sset('profile_'+phone,false,{name:auth.user.name,farm:auth.user.farm});
     await enterApp();
   } catch(err) {
@@ -352,7 +352,7 @@ async function doRegister(){
     if(!name || !phone || !pass){ showToast('info','กรอกไม่ครบ','กรุณากรอกชื่อ เบอร์โทร และรหัสผ่าน'); return; }
     if(pass.length<8){ showToast('info','รหัสผ่านสั้นเกินไป','ต้องมีอย่างน้อย 8 ตัวอักษร'); return; }
     const auth=await api('/api/auth/register',{method:'POST',body:JSON.stringify({phone:phone,password:pass,name:name,farm:farm||'ฟาร์มของฉัน'})});
-    session = { phone:phone, token:auth.token }; sessionStorage.setItem('ecobee_farmer_token',auth.token);
+    session = { phone:phone, token:auth.token }; localStorage.setItem('ecobee_farmer_token',auth.token);
     await sset('profile_'+phone, false, { name:name, farm:farm||'ฟาร์มของฉัน' });
     showToast('safe','สมัครสมาชิกสำเร็จ','ยินดีต้อนรับ '+name);
     await enterApp();
@@ -371,7 +371,7 @@ async function doForgot(){
     showToast('alert','ส่งคำขอไม่สำเร็จ',err.message);
   }
 }
-async function logout(){ try{await api('/api/auth/logout',{method:'POST',body:'{}'});}catch(e){} sessionStorage.removeItem('ecobee_farmer_token');session=null;document.getElementById('app').classList.add('hidden');document.getElementById('auth-screen').classList.remove('hidden');renderAuth('login');showToast('info','ออกจากระบบแล้ว',''); }
+async function logout(){ try{await api('/api/auth/logout',{method:'POST',body:'{}'});}catch(e){} localStorage.removeItem('ecobee_farmer_token');session=null;document.getElementById('app').classList.add('hidden');document.getElementById('auth-screen').classList.remove('hidden');renderAuth('login');showToast('info','ออกจากระบบแล้ว',''); }
 
 /* ================= MAP ================= */
 let map, satelliteLayer, streetLayer, usingSatellite=true;

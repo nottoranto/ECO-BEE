@@ -32,7 +32,10 @@ PAGE_FILES = {
     "/trace": ROOT / "trace" / "index.html",
 }
 SPECIES_RADIUS = {"meliponini": 0.3, "cerana": 1.5, "mellifera": 3.0, "dorsata": 5.0}
-SESSION_MS = 12 * 60 * 60 * 1000
+# Farmer devices open the app through a short-lived LIFF webview. Keep the
+# revocable server-side session long enough that closing LINE doesn't require
+# another password login. Explicit logout and password resets still revoke it.
+SESSION_MS = 30 * 24 * 60 * 60 * 1000
 LOGIN_ATTEMPTS = {}
 FARMER_PRIVATE_PREFIXES = ("profile_", "seenAlerts_", "uiScale")
 ORG_PRIVATE_PREFIXES = ("accounts", "admins", "profile_", "orgSettings")
