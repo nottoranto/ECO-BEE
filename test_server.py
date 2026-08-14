@@ -62,6 +62,15 @@ class BackendTests(unittest.TestCase):
             self.assertNotIn(secret,serialized)
         self.assertIn("environment",trace)
 
+    def test_hive_keeps_farmer_selected_foraging_radius(self):
+        _,auth=self.request("POST","/api/auth/register",{"phone":"0898888888","password":"safe-pass","name":"ผู้ทดสอบรัศมี","farm":"ฟาร์มรัศมี"})
+        status,hive=self.request("POST","/api/hives",{"name":"รังรัศมี","species":"meliponini","lat":13.5,"lng":99.8,"radius_km":1.2},auth["token"])
+        self.assertEqual(status,201)
+        self.assertEqual(hive["radius_km"],1.2)
+        _,mapped=self.request("GET","/api/map-data",token=auth["token"])
+        saved=next(x for x in mapped["hives"] if x["id"]==hive["id"])
+        self.assertEqual(saved["radius_km"],1.2)
+
     def test_public_trace_uses_real_aggregates_without_coordinates(self):
         _,auth=self.request("POST","/api/auth/register",{"phone":"0891111111","password":"safe-pass","name":"ผู้ทดสอบสิ่งแวดล้อม","farm":"ฟาร์มข้อมูลจริง"})
         token=auth["token"]

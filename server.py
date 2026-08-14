@@ -864,7 +864,7 @@ class API(SimpleHTTPRequestHandler):
                 if path == "/api/hives":
                     species=data.get("species")
                     if species not in SPECIES_RADIUS:return self.json_response({"error":"invalid_species"},400)
-                    hid=new_id("hive"); radius=SPECIES_RADIUS[species]
+                    hid=new_id("hive"); radius=optional_number(data.get("radius_km"),0.1,50) or SPECIES_RADIUS[species]
                     lat,lng=float(data["lat"]),float(data["lng"])
                     if not -90<=lat<=90 or not -180<=lng<=180:raise ValueError("invalid_coordinates")
                     if not valid_text(data.get("name","รังผึ้ง"),1,150):raise ValueError("invalid_name")

@@ -395,7 +395,6 @@ function initMap(center){
   });
   map.on('click', onMapClick);
   map.on('contextmenu', function(){ if((mode==='drawPlantArea'||mode==='drawSafe'||mode==='drawDanger')&&drawVertices.length){ drawVertices.pop(); updateDrawPreview(); } });
-  map.on('moveend', function(){ if(!document.getElementById('sheet-panel-calendar').classList.contains('hidden')) renderCalendar(map.getCenter().lat, map.getCenter().lng); });
 }
 
 /* ================= TOASTS ================= */
@@ -653,8 +652,9 @@ function openHiveForm(latlng){
     const radiusKm=parseFloat(document.getElementById('hive-radius').value)||SPECIES_DB[species].radiusKm;
     const note=document.getElementById('hive-note').value.trim();
     const newHive={ id:uid(), name:name, lat:latlng.lat, lng:latlng.lng, species:species, radiusKm:radiusKm, note:note, ownerPhone:session.phone, public:false, createdAt:Date.now() };
-    try{const saved=await api('/api/hives',{method:'POST',body:JSON.stringify({name:name,species:species,lat:latlng.lat,lng:latlng.lng,note:note})});newHive.backendId=saved.id;}catch(e){closeModal();showToast('alert','บันทึกไม่สำเร็จ','เซิร์ฟเวอร์ไม่ยอมรับข้อมูลรัง');return;}
+    try{const saved=await api('/api/hives',{method:'POST',body:JSON.stringify({name:name,species:species,lat:latlng.lat,lng:latlng.lng,radius_km:radiusKm,note:note})});newHive.id=saved.id;newHive.backendId=saved.id;newHive.radiusKm=saved.radius_km;}catch(e){closeModal();showToast('alert','บันทึกไม่สำเร็จ',e.message);return;}
     myHives.push(newHive);
+    calHiveId=newHive.id;rememberCalendarHive();
     closeModal();
     renderHives(); buildSearchIndex(); renderAllPanels(); showToast('hive','บันทึกรังผึ้งแล้ว', name+' · '+SPECIES_DB[species].label);
   });
@@ -747,9 +747,9 @@ function setActiveTab(id){
   activeTab=id;
   document.querySelectorAll('.sheet-tab').forEach(function(b){ const on=b.dataset.tab===id; b.classList.toggle('text-gray-800',on); b.classList.toggle('border-gray-800',on); b.classList.toggle('border-b-2',on); b.classList.toggle('text-gray-400',!on); });
   TABS.forEach(function(t){ document.getElementById('sheet-panel-'+t.id).classList.toggle('hidden', t.id!==id); });
-  if(id==='calendar') renderCalendar(map.getCenter().lat, map.getCenter().lng);
+  if(id==='calendar') renderCalendar();
 }
-function renderAllPanels(){ renderAddPanel(); renderCalendar(map.getCenter().lat, map.getCenter().lng); renderMinePanel(); renderAlertsPanel(); renderSettingsPanel(); }
+function renderAllPanels(){ renderAddPanel(); renderCalendar(); renderMinePanel(); renderAlertsPanel(); renderSettingsPanel(); }
 
 /* ---- ADD panel ---- */
 function renderAddPanel(){
@@ -812,30 +812,66 @@ function preHivePlacementAdvice(latlng){
 }
 
 /* ================= CALENDAR ANALYSIS ================= */
-const ANALYSIS_RADIUS_KM=2;
 let calMonthSel=new Date().getMonth();
-function computeCalendar(lat,lng){
-  const cover=[]; for(let i=0;i<12;i++) cover.push([]);
-  plants.forEach(function(p){ const pt=p.geom.type==='point'?p.geom.coords:centroid(p.geom.coords); if(haversineKm(lat,lng,pt[0],pt[1])<=ANALYSIS_RADIUS_KM){ const pl=PLANT_CATALOG[p.type]; if(pl) pl.months.forEach(function(m){ if(cover[m].indexOf(pl.label)===-1) cover[m].push(pl.label); }); } });
-  return monthFullTh.map(function(name,i){ return { name:name, short:monthShortTh[i], has:cover[i].length>0, plants:cover[i] }; });
+let calHiveId=null;
+function calendarStorageKey(){ return 'ecobee_calendar_hive_'+(session?session.phone:'guest'); }
+function rememberCalendarHive(){ if(session&&calHiveId) localStorage.setItem(calendarStorageKey(),calHiveId); }
+function ensureCalendarHive(){
+  if(!myHives.length){calHiveId=null;return;}
+  const remembered=localStorage.getItem(calendarStorageKey());
+  if((calHiveId==='all'&&myHives.length>1)||myHives.some(function(h){return h.id===calHiveId;})) return;
+  if(remembered==='all'&&myHives.length>1)calHiveId='all';
+  else calHiveId=myHives.some(function(h){return h.id===remembered;})?remembered:myHives[0].id;
+}
+function foodAroundHive(hive){
+  const cover=[];for(let i=0;i<12;i++)cover.push([]);
+  const spec=SPECIES_DB[hive.species]||SPECIES_DB.meliponini;
+  const radius=Number(hive.radiusKm)||spec.radiusKm;
+  plants.forEach(function(p){
+    const pt=p.geom.type==='point'?p.geom.coords:centroid(p.geom.coords);
+    if(haversineKm(hive.lat,hive.lng,pt[0],pt[1])<=radius){
+      const pl=PLANT_CATALOG[p.type];
+      if(pl)pl.months.forEach(function(m){if(cover[m].indexOf(pl.label)===-1)cover[m].push(pl.label);});
+    }
+  });
+  return cover;
+}
+function computeCalendar(targets){
+  const byHive=targets.map(function(h){return foodAroundHive(h);});
+  return monthFullTh.map(function(name,i){
+    const names=[];let supported=0;
+    byHive.forEach(function(cover){if(cover[i].length)supported++;cover[i].forEach(function(n){if(names.indexOf(n)===-1)names.push(n);});});
+    return {name:name,short:monthShortTh[i],has:supported===targets.length&&targets.length>0,plants:names,supported:supported,total:targets.length};
+  });
 }
 function recommendForMonth(monthIndex, already){
   const cands=[];
   Object.keys(PLANT_CATALOG).forEach(function(k){ const p=PLANT_CATALOG[k]; if(p.months.indexOf(monthIndex)!==-1 && already.indexOf(p.label)===-1) cands.push(p); });
   return cands.slice(0,2);
 }
-function renderCalendar(lat,lng){
-  const data=computeCalendar(lat,lng);
-  const noFood=data.filter(function(m){ return !m.has; }).length;
+function renderCalendar(){
   const p=document.getElementById('sheet-panel-calendar');
-  let head='<p class="text-xs text-gray-400 mb-3 leading-relaxed"><i class="fa-solid fa-circle-info text-amber-400 mr-1"></i>ดูจากพืชอาหารที่บันทึกไว้ในรัศมี '+ANALYSIS_RADIUS_KM+' กม. รอบกลางแผนที่ · เลื่อนแผนที่เพื่อดูพื้นที่อื่น</p>';
+  ensureCalendarHive();
+  if(!myHives.length){
+    p.innerHTML='<div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center"><div class="w-11 h-11 rounded-xl bg-white text-amber-500 flex items-center justify-center mx-auto mb-3"><svg class="w-5 h-5" fill="currentColor"><use href="#icon-hive"/></svg></div><h3 class="font-display font-bold text-gray-800">เพิ่มรังก่อนดูปฏิทินอาหาร</h3><p class="text-xs text-gray-500 mt-1.5 leading-relaxed">ระบบต้องใช้ตำแหน่ง สายพันธุ์ และรัศมีหากินของรังเพื่อคำนวณพืชอาหารรายเดือน</p><button id="cal-add-hive" class="mt-4 h-10 px-4 rounded-xl bg-amber-500 text-white text-sm font-semibold">เพิ่มรังผึ้ง</button></div>';
+    document.getElementById('cal-add-hive').addEventListener('click',function(){setActiveTab('add');armMode('hive');});
+    return;
+  }
+  const targets=calHiveId==='all'?myHives:myHives.filter(function(h){return h.id===calHiveId;});
+  const selected=targets[0];
+  const data=computeCalendar(targets);
+  const noFood=data.filter(function(m){ return !m.has; }).length;
+  const selector='<label class="block text-[11px] font-bold text-amber-600 mb-1.5">เลือกรังที่ต้องการวิเคราะห์</label><select id="calendar-hive" class="w-full h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 mb-2">'+myHives.map(function(h){return '<option value="'+escapeHtml(h.id)+'" '+(calHiveId===h.id?'selected':'')+'>'+escapeHtml(h.name)+'</option>';}).join('')+(myHives.length>1?'<option value="all" '+(calHiveId==='all'?'selected':'')+'>ภาพรวมทุกรัง ('+myHives.length+' รัง)</option>':'')+'</select>';
+  const context=calHiveId==='all'?'เปรียบเทียบพืชอาหารรอบรังทั้งหมด โดยแต่ละรังใช้รัศมีของตัวเอง':'คำนวณจากพืชอาหารในรัศมี '+(Number(selected.radiusKm)||(SPECIES_DB[selected.species]||SPECIES_DB.meliponini).radiusKm)+' กม. รอบ '+escapeHtml(selected.name);
+  let head=selector+'<p class="text-xs text-gray-400 mb-3 leading-relaxed"><i class="fa-solid fa-circle-info text-amber-400 mr-1"></i>'+context+'</p>';
   head += noFood===0
-    ? '<div class="rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold px-3.5 py-2.5 mb-3 flex items-center gap-2"><i class="fa-solid fa-circle-check"></i>มีพืชอาหารครบทั้ง 12 เดือน</div>'
-    : '<div class="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold px-3.5 py-2.5 mb-3 flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation"></i>มี '+noFood+' เดือนที่ไม่พบพืชอาหาร</div>';
+    ? '<div class="rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold px-3.5 py-2.5 mb-3 flex items-center gap-2"><i class="fa-solid fa-circle-check"></i>'+(calHiveId==='all'?'ทุกรังมีพืชอาหารครบทั้ง 12 เดือน':'มีพืชอาหารครบทั้ง 12 เดือน')+'</div>'
+    : '<div class="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold px-3.5 py-2.5 mb-3 flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation"></i>มี '+noFood+' เดือนที่อาหารไม่ครบทุกรัง</div>';
   let grid='<div class="grid grid-cols-4 gap-2 mb-4">';
-  data.forEach(function(m,i){ const on=m.has; grid+='<button data-cm="'+i+'" class="cal-cell text-left rounded-xl border p-2.5 transition-all '+(on?'bg-emerald-50 border-emerald-200':'bg-rose-50 border-rose-200')+'"><div class="flex items-center justify-between mb-1.5"><span class="font-display font-bold text-xs text-gray-800">'+m.short+'</span><span class="w-1.5 h-1.5 rounded-full '+(on?'bg-emerald-500':'bg-rose-500')+'"></span></div><p class="text-[9px] font-semibold '+(on?'text-emerald-600':'text-rose-600')+'">'+(on?'มีพืชอาหาร':'ไม่มี')+'</p></button>'; });
+  data.forEach(function(m,i){ const on=m.has; const label=calHiveId==='all'?(m.supported+'/'+m.total+' รัง'):(on?'มีพืชอาหาร':'ไม่มี'); grid+='<button data-cm="'+i+'" class="cal-cell text-left rounded-xl border p-2.5 transition-all '+(on?'bg-emerald-50 border-emerald-200':'bg-rose-50 border-rose-200')+'"><div class="flex items-center justify-between mb-1.5"><span class="font-display font-bold text-xs text-gray-800">'+m.short+'</span><span class="w-1.5 h-1.5 rounded-full '+(on?'bg-emerald-500':'bg-rose-500')+'"></span></div><p class="text-[9px] font-semibold '+(on?'text-emerald-600':'text-rose-600')+'">'+label+'</p></button>'; });
   grid+='</div><div id="cal-detail"></div>';
   p.innerHTML=head+grid;
+  document.getElementById('calendar-hive').addEventListener('change',function(){calHiveId=this.value;rememberCalendarHive();renderCalendar();});
   p.querySelectorAll('.cal-cell').forEach(function(btn){ btn.addEventListener('click', function(){ calMonthSel=+btn.dataset.cm; renderCalDetail(data); }); });
   if(calMonthSel>=data.length) calMonthSel=0;
   renderCalDetail(data);
@@ -848,7 +884,8 @@ function renderCalDetail(data){
   } else {
     const recs=recommendForMonth(calMonthSel, m.plants);
     let recHtml = recs.length ? recs.map(function(r){ return '<div class="bg-white/70 border border-gray-100 rounded-xl px-3.5 py-2.5 mt-2"><p class="text-sm font-semibold text-gray-700">'+r.icon+' แนะนำปลูก '+escapeHtml(r.label)+'</p><p class="text-xs text-gray-500 mt-0.5 leading-relaxed"><i class="fa-solid fa-lightbulb text-amber-400 mr-1"></i>'+escapeHtml(r.why)+'</p></div>'; }).join('') : '<p class="text-xs text-gray-500 mt-2">ยังไม่มีคำแนะนำพืชสำหรับเดือนนี้ในฐานข้อมูล</p>';
-    body='<div class="rounded-2xl border p-4 bg-rose-50 border-rose-200"><p class="text-xs font-semibold text-rose-600 mb-1.5">'+m.name+' · ไม่พบพืชอาหาร</p><p class="text-gray-700 text-sm leading-relaxed">ไม่พบพืชอาหารในรัศมี '+ANALYSIS_RADIUS_KM+' กม. สำหรับเดือนนี้</p>'+recHtml+'</div>';
+    const title=m.total>1?(m.name+' · มีอาหาร '+m.supported+' จาก '+m.total+' รัง'):(m.name+' · ไม่พบพืชอาหาร');
+    body='<div class="rounded-2xl border p-4 bg-rose-50 border-rose-200"><p class="text-xs font-semibold text-rose-600 mb-1.5">'+title+'</p><p class="text-gray-700 text-sm leading-relaxed">พืชอาหารยังไม่ครอบคลุมรังที่เลือกสำหรับเดือนนี้</p>'+recHtml+'</div>';
   }
   el.innerHTML=body;
 }
