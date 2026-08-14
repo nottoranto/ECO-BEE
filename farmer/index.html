@@ -488,10 +488,22 @@ function renderPlants(){
     if(p.geom.type==='point'){
       const icon=L.divIcon({className:'',html:'<div class="map-pin map-pin-emerald"><i class="fa-solid fa-seedling" style="color:white"></i></div>',iconSize:[34,34],iconAnchor:[17,17]});
       const m=L.marker(p.geom.coords,{icon:icon}).addTo(map); m.bindPopup(html);
+      m.on('click', function(e){
+        if(mode!=='placeHive') return;
+        if(e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent);
+        m.closePopup();
+        preHivePlacementAdvice(e.latlng);
+      });
       if(canDelete) m.on('popupopen', function(e){ const el=e.popup.getElement().querySelector('[data-delplant]'); if(el) el.addEventListener('click', function(){ deletePlant(p.id); }); });
       plantRefs.push(m);
     } else {
       const poly=L.polygon(p.geom.coords,{color:'#10b981',weight:2,fillColor:'#10b981',fillOpacity:0.18}).addTo(map); poly.bindPopup(html);
+      poly.on('click', function(e){
+        if(mode!=='placeHive') return;
+        if(e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent);
+        poly.closePopup();
+        preHivePlacementAdvice(e.latlng);
+      });
       if(canDelete) poly.on('popupopen', function(e){ const el=e.popup.getElement().querySelector('[data-delplant]'); if(el) el.addEventListener('click', function(){ deletePlant(p.id); }); });
       plantRefs.push(poly);
     }
