@@ -42,7 +42,34 @@ create table if not exists ecobee.plants (
   variety text not null default '',
   months text not null,
   geometry text not null,
+  area_rai double precision,
+  tree_count integer,
+  bloom_status text not null default 'unknown',
+  pesticide_use text not null default 'unknown',
+  observed_at bigint,
+  note text not null default '',
   created_at bigint not null
+);
+create table if not exists ecobee.plant_species (
+  code text primary key,
+  thai_name text not null,
+  common_name text not null default '',
+  scientific_name text not null default '',
+  category text not null default 'other',
+  resource_type text not null default 'unknown' check(resource_type in ('unknown','nectar','pollen','both')),
+  nectar_score double precision check(nectar_score between 0 and 5),
+  pollen_score double precision check(pollen_score between 0 and 5),
+  nectar_amount double precision check(nectar_amount >= 0),
+  nectar_unit text not null default '',
+  sugar_brix double precision check(sugar_brix between 0 and 100),
+  flowering_months text not null default '[]',
+  source_title text not null default '',
+  source_url text not null default '',
+  confidence text not null default 'unverified' check(confidence in ('unverified','low','medium','high')),
+  status text not null default 'draft' check(status in ('draft','approved','archived')),
+  created_by bigint,
+  created_at bigint not null,
+  updated_at bigint not null
 );
 create table if not exists ecobee.risk_zones (
   id text primary key,
@@ -113,6 +140,12 @@ alter table ecobee.hives add column if not exists is_public integer not null def
 alter table ecobee.hives alter column user_id drop not null;
 alter table ecobee.plants add column if not exists admin_id bigint;
 alter table ecobee.plants alter column user_id drop not null;
+alter table ecobee.plants add column if not exists area_rai double precision;
+alter table ecobee.plants add column if not exists tree_count integer;
+alter table ecobee.plants add column if not exists bloom_status text not null default 'unknown';
+alter table ecobee.plants add column if not exists pesticide_use text not null default 'unknown';
+alter table ecobee.plants add column if not exists observed_at bigint;
+alter table ecobee.plants add column if not exists note text not null default '';
 alter table ecobee.risk_zones add column if not exists admin_id bigint;
 alter table ecobee.risk_zones alter column user_id drop not null;
 
@@ -120,6 +153,7 @@ create index if not exists sessions_user_id_idx on ecobee.sessions(user_id);
 create index if not exists sessions_expires_at_idx on ecobee.sessions(expires_at);
 create index if not exists hives_user_id_idx on ecobee.hives(user_id);
 create index if not exists plants_user_id_idx on ecobee.plants(user_id);
+create index if not exists plant_species_status_idx on ecobee.plant_species(status);
 create index if not exists risk_zones_user_id_idx on ecobee.risk_zones(user_id);
 create index if not exists movements_hive_id_idx on ecobee.movements(hive_id);
 create index if not exists harvest_batches_hive_id_idx on ecobee.harvest_batches(hive_id);
@@ -134,6 +168,7 @@ alter table ecobee.users enable row level security;
 alter table ecobee.sessions enable row level security;
 alter table ecobee.hives enable row level security;
 alter table ecobee.plants enable row level security;
+alter table ecobee.plant_species enable row level security;
 alter table ecobee.risk_zones enable row level security;
 alter table ecobee.movements enable row level security;
 alter table ecobee.harvest_batches enable row level security;

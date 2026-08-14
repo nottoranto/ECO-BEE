@@ -32,6 +32,14 @@ PAGE_FILES = {
     "/trace": ROOT / "trace" / "index.html",
 }
 SPECIES_RADIUS = {"meliponini": 0.3, "cerana": 1.5, "mellifera": 3.0, "dorsata": 5.0}
+PLANT_SEEDS = {
+    "longan": ("ลำไย", [1, 2, 12]), "lychee": ("ลิ้นจี่", [1, 2, 3]),
+    "durian": ("ทุเรียน", [1, 2, 3]), "mango": ("มะม่วง", [12, 1, 2]),
+    "coffee": ("กาแฟ", [12, 1, 2]), "rubber": ("ยางพารา", [2, 3, 4]),
+    "wildflower": ("ดอกไม้ป่า/วัชพืชดอก", [3, 4, 5]), "sesbania": ("โสน", [4, 5]),
+    "sunflower": ("ทานตะวัน", [11, 12, 1]), "sesame": ("งา", [11, 12]),
+    "lotus": ("บัว", [6, 7, 8, 9, 10]), "coconut": ("มะพร้าว", list(range(1, 13))),
+}
 # Farmer devices open the app through a short-lived LIFF webview. Keep the
 # revocable server-side session long enough that closing LINE doesn't require
 # another password login. Explicit logout and password resets still revoke it.
@@ -99,7 +107,19 @@ def init_db():
           id TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
           admin_id INTEGER REFERENCES org_admins(id) ON DELETE SET NULL,
           plant_type TEXT NOT NULL, variety TEXT NOT NULL DEFAULT '', months TEXT NOT NULL,
-          geometry TEXT NOT NULL, created_at INTEGER NOT NULL
+          geometry TEXT NOT NULL, area_rai REAL, tree_count INTEGER,
+          bloom_status TEXT NOT NULL DEFAULT 'unknown', pesticide_use TEXT NOT NULL DEFAULT 'unknown',
+          observed_at INTEGER, note TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS plant_species (
+          code TEXT PRIMARY KEY, thai_name TEXT NOT NULL, common_name TEXT NOT NULL DEFAULT '',
+          scientific_name TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'other',
+          resource_type TEXT NOT NULL DEFAULT 'unknown', nectar_score REAL, pollen_score REAL,
+          nectar_amount REAL, nectar_unit TEXT NOT NULL DEFAULT '', sugar_brix REAL,
+          flowering_months TEXT NOT NULL DEFAULT '[]', source_title TEXT NOT NULL DEFAULT '',
+          source_url TEXT NOT NULL DEFAULT '', confidence TEXT NOT NULL DEFAULT 'unverified',
+          status TEXT NOT NULL DEFAULT 'draft', created_by INTEGER, created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
         );
         CREATE TABLE IF NOT EXISTS risk_zones (
           id TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -148,6 +168,21 @@ def init_db():
             ALTER TABLE hives ALTER COLUMN user_id DROP NOT NULL;
             ALTER TABLE plants ADD COLUMN IF NOT EXISTS admin_id bigint REFERENCES org_admins(id) ON DELETE SET NULL;
             ALTER TABLE plants ALTER COLUMN user_id DROP NOT NULL;
+            ALTER TABLE plants ADD COLUMN IF NOT EXISTS area_rai double precision;
+            ALTER TABLE plants ADD COLUMN IF NOT EXISTS tree_count integer;
+            ALTER TABLE plants ADD COLUMN IF NOT EXISTS bloom_status text NOT NULL DEFAULT 'unknown';
+            ALTER TABLE plants ADD COLUMN IF NOT EXISTS pesticide_use text NOT NULL DEFAULT 'unknown';
+            ALTER TABLE plants ADD COLUMN IF NOT EXISTS observed_at bigint;
+            ALTER TABLE plants ADD COLUMN IF NOT EXISTS note text NOT NULL DEFAULT '';
+            CREATE TABLE IF NOT EXISTS plant_species (
+              code text primary key, thai_name text not null, common_name text not null default '',
+              scientific_name text not null default '', category text not null default 'other',
+              resource_type text not null default 'unknown', nectar_score double precision, pollen_score double precision,
+              nectar_amount double precision, nectar_unit text not null default '', sugar_brix double precision,
+              flowering_months text not null default '[]', source_title text not null default '',
+              source_url text not null default '', confidence text not null default 'unverified',
+              status text not null default 'draft', created_by bigint, created_at bigint not null, updated_at bigint not null
+            );
             ALTER TABLE risk_zones ADD COLUMN IF NOT EXISTS admin_id bigint REFERENCES org_admins(id) ON DELETE SET NULL;
             ALTER TABLE risk_zones ALTER COLUMN user_id DROP NOT NULL;
             CREATE TABLE IF NOT EXISTS password_reset_requests (
@@ -156,6 +191,14 @@ def init_db():
               created_at bigint not null, resolved_at bigint, admin_id bigint references org_admins(id) on delete set null
             );
             """)
+        else:
+            plant_columns={row["name"] for row in db.execute("PRAGMA table_info(plants)").fetchall()}
+            for name,definition in {
+                "area_rai":"REAL", "tree_count":"INTEGER", "bloom_status":"TEXT NOT NULL DEFAULT 'unknown'",
+                "pesticide_use":"TEXT NOT NULL DEFAULT 'unknown'", "observed_at":"INTEGER",
+                "note":"TEXT NOT NULL DEFAULT ''"
+            }.items():
+                if name not in plant_columns:db.execute(f"ALTER TABLE plants ADD COLUMN {name} {definition}")
         admin_password = os.environ.get("ECOBEE_ADMIN_PASSWORD", "")
         if os.environ.get("ECOBEE_ENV") == "production" and len(admin_password) < 12:
             raise RuntimeError("ECOBEE_ADMIN_PASSWORD must contain at least 12 characters in production")
@@ -178,6 +221,10 @@ def init_db():
                 db.execute("UPDATE org_admins SET password_hash=? WHERE id=?",(hash_password(password),weak["id"]))
                 db.execute("DELETE FROM org_sessions")
                 print(f"ECO Bee rotated insecure admin password. New password: {password}")
+        for code,(thai_name,months) in PLANT_SEEDS.items():
+            db.execute("""INSERT INTO plant_species(code,thai_name,flowering_months,status,confidence,created_at,updated_at)
+              VALUES(?,?,?,?,?,?,?) ON CONFLICT(code) DO NOTHING""",
+              (code,thai_name,json.dumps(months),'approved','unverified',now_ms(),now_ms()))
         migrate_legacy_map_data(db)
         # Remove credentials and obsolete sessions previously stored by the demo UI.
         for key in ("accounts", "admins"):
@@ -236,6 +283,26 @@ def migrate_legacy_map_data(db):
 def now_ms(): return int(time.time() * 1000)
 def new_id(prefix): return f"{prefix}_{secrets.token_hex(8)}"
 def token_digest(token): return hashlib.sha256(token.encode()).hexdigest()
+
+
+def optional_number(value, minimum=0, maximum=None):
+    if value in (None, ""):return None
+    number=float(value)
+    if number<minimum or (maximum is not None and number>maximum):raise ValueError("invalid_number")
+    return number
+
+
+def plant_grade(row):
+    values=[row[k] for k in ("nectar_score","pollen_score") if row[k] is not None]
+    if not values:return "unrated"
+    score=max(float(x) for x in values)
+    return "A" if score>=4 else ("B" if score>=2.5 else "C")
+
+
+def plant_species_payload(row):
+    out=dict(row);out["flowering_months"]=json.loads(out["flowering_months"] or "[]")
+    out["grade"]=plant_grade(row)
+    return out
 
 
 def hash_password(password, salt=None):
@@ -393,6 +460,25 @@ class API(SimpleHTTPRequestHandler):
             if not isinstance(item,dict):raise PermissionError("invalid_data_owner")
             if str(item.get("id")) not in old_other and item.get(owner_field)!=phone:raise PermissionError("invalid_data_owner")
 
+    def validated_plant_species(self, data, current=None):
+        def val(key,default=""):
+            return data.get(key, current[key] if current is not None else default)
+        thai_name=str(val("thai_name")).strip()
+        if not valid_text(thai_name,1,120):raise ValueError("invalid_plant_name")
+        resource=str(val("resource_type","unknown"));confidence=str(val("confidence","unverified"));status=str(val("status","draft"))
+        if resource not in ("unknown","nectar","pollen","both"):raise ValueError("invalid_resource_type")
+        if confidence not in ("unverified","low","medium","high"):raise ValueError("invalid_confidence")
+        if status not in ("draft","approved","archived"):raise ValueError("invalid_status")
+        raw_months=val("flowering_months",[])
+        if isinstance(raw_months,str):raw_months=json.loads(raw_months or "[]")
+        months=sorted(set(int(m) for m in raw_months if 1<=int(m)<=12))
+        return (
+          thai_name,str(val("common_name"))[:120],str(val("scientific_name"))[:160],str(val("category","other"))[:80],resource,
+          optional_number(val("nectar_score",None),0,5),optional_number(val("pollen_score",None),0,5),
+          optional_number(val("nectar_amount",None),0),str(val("nectar_unit"))[:80],optional_number(val("sugar_brix",None),0,100),
+          json.dumps(months),str(val("source_title"))[:250],str(val("source_url"))[:500],confidence,status
+        )
+
     def do_GET(self):
         try:
             path = urlparse(self.path).path
@@ -432,6 +518,14 @@ class API(SimpleHTTPRequestHandler):
                     role,actor=self.actor(db)
                     if not actor:return self.json_response({"error":"unauthorized"},401)
                     return self.json_response(self.map_payload(db,actor["id"] if role=="farmer" else None))
+            if path in ("/api/plant-species","/api/org/plant-species"):
+                with connect() as db:
+                    role,actor=self.actor(db)
+                    if not actor:return self.json_response({"error":"unauthorized"},401)
+                    if path.startswith("/api/org/") and role!="org":return self.json_response({"error":"forbidden"},403)
+                    sql="SELECT * FROM plant_species"+("" if role=="org" else " WHERE status='approved'")+" ORDER BY thai_name"
+                    rows=db.execute(sql).fetchall()
+                return self.json_response([plant_species_payload(x) for x in rows])
             if path == "/api/org/farmers":
                 with connect() as db:
                     if not self.org_user(db): return self.json_response({"error":"unauthorized"},401)
@@ -523,6 +617,20 @@ class API(SimpleHTTPRequestHandler):
                     if not admin:return self.json_response({"error":"unauthorized"},401)
                     cur=db.execute("UPDATE hives SET is_public=? WHERE id=? AND admin_id=?",(int(bool(data.get("is_public"))),hive_id,admin["id"]))
                 return self.json_response({"ok":True}) if cur.rowcount else self.json_response({"error":"not_found"},404)
+            if path.startswith("/api/org/plant-species/"):
+                code=unquote(path[len("/api/org/plant-species/"):]);data=self.body()
+                with connect() as db:
+                    admin=self.org_user(db)
+                    if not admin:return self.json_response({"error":"unauthorized"},401)
+                    row=db.execute("SELECT * FROM plant_species WHERE code=?",(code,)).fetchone()
+                    if not row:return self.json_response({"error":"not_found"},404)
+                    item=self.validated_plant_species(data,row)
+                    db.execute("""UPDATE plant_species SET thai_name=?,common_name=?,scientific_name=?,category=?,resource_type=?,
+                      nectar_score=?,pollen_score=?,nectar_amount=?,nectar_unit=?,sugar_brix=?,flowering_months=?,
+                      source_title=?,source_url=?,confidence=?,status=?,updated_at=? WHERE code=?""",
+                      (*item,now_ms(),code))
+                    updated=db.execute("SELECT * FROM plant_species WHERE code=?",(code,)).fetchone()
+                return self.json_response(plant_species_payload(updated))
             return self.json_response({"error":"not_found"},404)
         except PermissionError as e:self.json_response({"error":str(e)},403)
         except (ValueError,TypeError,json.JSONDecodeError) as e:self.json_response({"error":str(e)},400)
@@ -567,6 +675,15 @@ class API(SimpleHTTPRequestHandler):
                     if db.execute("SELECT count(*) n FROM org_admins").fetchone()["n"]<=1:return self.json_response({"error":"last_admin"},409)
                     cur=db.execute("DELETE FROM org_admins WHERE id=?",(admin_id,))
                 return self.json_response({"ok":True}) if cur.rowcount else self.json_response({"error":"not_found"},404)
+            if path.startswith("/api/org/plant-species/"):
+                code=unquote(path[len("/api/org/plant-species/"):])
+                with connect() as db:
+                    admin=self.org_user(db)
+                    if not admin:return self.json_response({"error":"unauthorized"},401)
+                    if db.execute("SELECT 1 FROM plants WHERE plant_type=? LIMIT 1",(code,)).fetchone():
+                        return self.json_response({"error":"plant_species_in_use"},409)
+                    cur=db.execute("DELETE FROM plant_species WHERE code=? AND status!='approved'",(code,))
+                return self.json_response({"ok":True}) if cur.rowcount else self.json_response({"error":"approved_species_cannot_be_deleted"},409)
             for prefix,table in (("/api/org/hives/","hives"),("/api/org/plants/","plants"),("/api/org/risk-zones/","risk_zones")):
                 if path.startswith(prefix):
                     item_id=unquote(path[len(prefix):])
@@ -700,6 +817,20 @@ class API(SimpleHTTPRequestHandler):
                     if not a:return self.json_response({"error":"unauthorized"},401)
                     db.execute("UPDATE org_admins SET name=? WHERE id=?",(name.strip(),a["id"]))
                 return self.json_response({"ok":True,"name":name.strip()})
+            if path == "/api/org/plant-species":
+                with connect() as db:
+                    admin=self.org_user(db)
+                    if not admin:return self.json_response({"error":"unauthorized"},401)
+                    code=str(data.get("code","")).strip().lower().replace(" ","_")
+                    if not code or len(code)>80 or not all(c.isalnum() or c in "_-" for c in code):
+                        return self.json_response({"error":"invalid_plant_code"},400)
+                    item=self.validated_plant_species(data)
+                    db.execute("""INSERT INTO plant_species(code,thai_name,common_name,scientific_name,category,resource_type,
+                      nectar_score,pollen_score,nectar_amount,nectar_unit,sugar_brix,flowering_months,source_title,
+                      source_url,confidence,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                      (code,*item,admin["id"],now_ms(),now_ms()))
+                    row=db.execute("SELECT * FROM plant_species WHERE code=?",(code,)).fetchone()
+                return self.json_response(plant_species_payload(row),201)
             if path.startswith("/api/org/hives/"):
                 hive_id=unquote(path[len("/api/org/hives/"):]);name=data.get("name");radius=float(data.get("radius_km",0))
                 if not valid_text(name,1,150) or radius<=0 or radius>20:return self.json_response({"error":"invalid_hive"},400)
@@ -740,9 +871,19 @@ class API(SimpleHTTPRequestHandler):
                     db.execute("INSERT INTO hives(id,user_id,admin_id,name,species,lat,lng,radius_km,note,is_public,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",(hid,u["id"],None,data.get("name","รังผึ้ง").strip(),species,lat,lng,radius,str(data.get("note",""))[:500],0,now_ms()))
                     return self.json_response({"id":hid,"radius_km":radius},201)
                 if path == "/api/plants":
-                    months=sorted(set(int(m) for m in data.get("months",[]) if 1<=int(m)<=12))
+                    species=db.execute("SELECT * FROM plant_species WHERE code=? AND status='approved'",(data.get("plant_type"),)).fetchone()
+                    if not species:return self.json_response({"error":"plant_species_not_found"},404)
+                    months=sorted(set(int(m) for m in data.get("months",json.loads(species["flowering_months"] or "[]")) if 1<=int(m)<=12))
                     geometry=data["geometry"]; geometry_center(geometry); pid=new_id("plant")
-                    db.execute("INSERT INTO plants(id,user_id,admin_id,plant_type,variety,months,geometry,created_at) VALUES(?,?,?,?,?,?,?,?)",(pid,u["id"],None,data["plant_type"],data.get("variety",""),json.dumps(months),json.dumps(geometry),now_ms()))
+                    area=optional_number(data.get("area_rai"),0,100000);trees=optional_number(data.get("tree_count"),0,100000000)
+                    if trees is not None:trees=int(trees)
+                    bloom=str(data.get("bloom_status","unknown"));pesticide=str(data.get("pesticide_use","unknown"))
+                    if bloom not in ("unknown","not_blooming","starting","medium","high","ended"):raise ValueError("invalid_bloom_status")
+                    if pesticide not in ("unknown","no","yes"):raise ValueError("invalid_pesticide_use")
+                    observed=int(data.get("observed_at") or now_ms())
+                    db.execute("""INSERT INTO plants(id,user_id,admin_id,plant_type,variety,months,geometry,area_rai,
+                      tree_count,bloom_status,pesticide_use,observed_at,note,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                      (pid,u["id"],None,data["plant_type"],str(data.get("variety",""))[:120],json.dumps(months),json.dumps(geometry),area,trees,bloom,pesticide,observed,str(data.get("note",""))[:500],now_ms()))
                     return self.json_response({"id":pid},201)
                 if path == "/api/risk-zones":
                     geometry=data["geometry"]; geometry_center(geometry); status=data.get("status")
@@ -751,18 +892,25 @@ class API(SimpleHTTPRequestHandler):
                     return self.json_response({"id":zid},201)
                 if path == "/api/assess":
                     lat,lng=float(data["lat"]),float(data["lng"]); species=data.get("species","meliponini"); radius=SPECIES_RADIUS.get(species,float(data.get("radius_km",.3)))
-                    plants=db.execute("SELECT * FROM plants").fetchall(); zones=db.execute("SELECT * FROM risk_zones WHERE status='danger'").fetchall()
-                    covered=set(); nearby=[]
+                    plants=db.execute("SELECT p.*,s.nectar_score,s.pollen_score,s.confidence FROM plants p LEFT JOIN plant_species s ON s.code=p.plant_type").fetchall(); zones=db.execute("SELECT * FROM risk_zones").fetchall()
+                    covered=set(); nearby=[];quantified=[]
                     for p in plants:
                         plat,plng=geometry_center(json.loads(p["geometry"])); d=haversine(lat,lng,plat,plng)
-                        if d<=radius: covered.update(json.loads(p["months"])); nearby.append({"type":p["plant_type"],"distance_km":round(d,3)})
-                    risks=[]
+                        if d<=radius:
+                            covered.update(json.loads(p["months"]));nearby.append({"type":p["plant_type"],"distance_km":round(d,3),"area_rai":p["area_rai"],"tree_count":p["tree_count"],"bloom_status":p["bloom_status"]})
+                            if (p["area_rai"] or p["tree_count"]) and (p["nectar_score"] is not None or p["pollen_score"] is not None):quantified.append(p)
+                    risks=[];safe_zones=[]
                     for z in zones:
                         zlat,zlng=geometry_center(json.loads(z["geometry"])); d=haversine(lat,lng,zlat,zlng)
-                        if d<=radius: risks.append({"id":z["id"],"name":z["name"],"distance_km":round(d,3),"note":z["note"]})
+                        if d<=radius:
+                            target=risks if z["status"]=="danger" else safe_zones
+                            target.append({"id":z["id"],"name":z["name"],"distance_km":round(d,3),"note":z["note"]})
                     missing=[m for m in range(1,13) if m not in covered]
                     score=max(0,round(100-len(missing)*5-len(risks)*20))
-                    return self.json_response({"radius_km":radius,"food_months":sorted(covered),"missing_months":missing,"nearby_plants":nearby,"risks":risks,"score":score,"safe":not risks})
+                    status="avoid" if risks else ("suitable" if len(covered)>=9 and len(nearby)>=2 else "caution")
+                    return self.json_response({"radius_km":radius,"food_months":sorted(covered),"missing_months":missing,"nearby_plants":nearby,"risks":risks,"safe_zones":safe_zones,"score":score,"safe":not risks,"status":status,
+                      "carrying_capacity":{"available":False,"reason":"ต้องมีค่าสัมประสิทธิ์ผลผลิตน้ำหวาน/เกสรที่มีแหล่งอ้างอิงและข้อมูลปริมาณพืชครบ"} if len(quantified)<len(nearby) or not nearby else {"available":False,"reason":"แบบจำลองจำนวนรังอยู่ระหว่างการรับรองโดยหน่วยงาน"},
+                      "data_quality":{"quantified_plants":len(quantified),"nearby_plants":len(nearby),"confidence":"insufficient" if len(quantified)<len(nearby) else "preliminary"}})
                 if path == "/api/movements":
                     hive=db.execute("SELECT * FROM hives WHERE id=? AND user_id=?",(data.get("hive_id"),u["id"])).fetchone()
                     if not hive:return self.json_response({"error":"hive_not_found"},404)

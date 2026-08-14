@@ -248,9 +248,11 @@ async function sset(key, shared, val){ mem[key]=val; try{ await window.storage.s
 async function loadArr(key, shared){ const v = await sget(key, shared); return Array.isArray(v)?v:[]; }
 
 async function refreshCatalog(){
-  const custom = await loadArr('plantCatalog', true);
   PLANT_CATALOG = Object.assign({}, DEFAULT_PLANT_DB);
-  custom.forEach(function(c){ PLANT_CATALOG[c.key] = { label:c.label, icon:c.icon||'🌿', months:c.months, why:c.why||'พรรณไม้ที่หน่วยงานเพิ่มเข้าฐานข้อมูล', custom:true }; });
+  try{
+    const rows=await api('/api/plant-species');
+    rows.forEach(function(p){ PLANT_CATALOG[p.code]={label:p.thai_name,icon:'🌿',months:(p.flowering_months||[]).map(function(m){return m-1;}),resourceType:p.resource_type,nectarScore:p.nectar_score,pollenScore:p.pollen_score,grade:p.grade,confidence:p.confidence,scientificName:p.scientific_name||'',custom:!DEFAULT_PLANT_DB[p.code]}; });
+  }catch(e){ /* ใช้ข้อมูลพื้นฐานระหว่างออฟไลน์ */ }
 }
 
 const DEFAULT_CENTER = [13.5282, 99.8134]; // ราชบุรี; ใช้ก่อนผู้ใช้อนุญาตตำแหน่ง
@@ -274,7 +276,7 @@ async function api(path, options){
   options=options||{}; options.headers=Object.assign({'Content-Type':'application/json'},options.headers||{});
   if(session&&session.token) options.headers.Authorization='Bearer '+session.token;
   const response=await fetch(path,options), data=await response.json();
-  if(!response.ok){ const labels={unauthorized:'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่',invalid_credentials:'เบอร์โทรหรือรหัสผ่านไม่ถูกต้อง',phone_exists:'เบอร์โทรนี้สมัครสมาชิกแล้ว',invalid_phone:'กรุณากรอกเบอร์โทร 9–10 หลัก',weak_password:'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',missing_fields:'กรุณากรอกข้อมูลให้ครบ',not_found:'ไม่พบข้อมูลที่ต้องการ',hive_not_found:'ไม่พบรังผึ้งที่เลือก',invalid_quantity:'ปริมาณต้องมากกว่า 0',internal_error:'ระบบขัดข้อง กรุณาลองใหม่อีกครั้ง'}; const err=new Error(labels[data.error]||data.error||'ไม่สามารถเชื่อมต่อระบบได้');err.code=data.error;err.status=response.status;throw err; }
+  if(!response.ok){ const labels={unauthorized:'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่',invalid_credentials:'เบอร์โทรหรือรหัสผ่านไม่ถูกต้อง',phone_exists:'เบอร์โทรนี้สมัครสมาชิกแล้ว',invalid_phone:'กรุณากรอกเบอร์โทร 9–10 หลัก',weak_password:'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',missing_fields:'กรุณากรอกข้อมูลให้ครบ',not_found:'ไม่พบข้อมูลที่ต้องการ',plant_species_not_found:'พืชชนิดนี้ยังไม่ได้รับอนุมัติจากหน่วยงาน',invalid_number:'พื้นที่หรือจำนวนต้นไม่ถูกต้อง',invalid_bloom_status:'สถานะการออกดอกไม่ถูกต้อง',invalid_pesticide_use:'ข้อมูลการใช้สารเคมีไม่ถูกต้อง',hive_not_found:'ไม่พบรังผึ้งที่เลือก',invalid_quantity:'ปริมาณต้องมากกว่า 0',internal_error:'ระบบขัดข้อง กรุณาลองใหม่อีกครั้ง'}; const err=new Error(labels[data.error]||data.error||'ไม่สามารถเชื่อมต่อระบบได้');err.code=data.error;err.status=response.status;throw err; }
   return data;
 }
 
@@ -445,7 +447,7 @@ async function enterApp(){
   profile = profile || await sget('profile_'+session.phone, false) || { name:'เกษตรกร', farm:'ฟาร์มของฉัน' };
   const data=await api('/api/map-data');
   myHives=data.hives.filter(function(h){return h.mine;}).map(function(h){return {id:h.id,backendId:h.id,name:h.name,species:h.species,lat:h.lat,lng:h.lng,radiusKm:h.radius_km,note:h.note,ownerPhone:h.owner_phone,createdAt:h.created_at};});
-  plants=data.plants.map(function(p){return {id:p.id,backendId:p.id,type:p.plant_type,variety:p.variety,geom:p.geometry,note:p.note||'',ownerPhone:p.owner_phone||'org',ownerName:p.owner_name||p.admin_name||'หน่วยงาน',createdAt:p.created_at};});
+  plants=data.plants.map(function(p){return {id:p.id,backendId:p.id,type:p.plant_type,variety:p.variety,geom:p.geometry,note:p.note||'',areaRai:p.area_rai,treeCount:p.tree_count,bloomStatus:p.bloom_status,pesticideUse:p.pesticide_use,observedAt:p.observed_at,ownerPhone:p.owner_phone||'org',ownerName:p.owner_name||p.admin_name||'หน่วยงาน',createdAt:p.created_at};});
   zones=data.risk_zones.map(function(z){return {id:z.id,backendId:z.id,status:z.status,name:z.name,geom:z.geometry,note:z.note||'',ownerPhone:z.owner_phone||'org',ownerName:z.owner_name||z.admin_name||'หน่วยงาน',createdAt:z.created_at};});
   const center = DEFAULT_CENTER;
   if(!map){ initMap(center); } else { map.setView(center, 14); }
@@ -650,10 +652,12 @@ function openPlantForm(geom){
   openModal(
     '<div class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center mb-4"><i class="fa-solid fa-seedling"></i></div>' +
     '<h3 class="font-display font-bold text-lg text-gray-800">เพิ่มแหล่งอาหารผึ้ง</h3>' +
-    '<p class="text-gray-400 text-xs mt-1">แชร์ให้เกษตรกรท่านอื่นเห็น เพื่อใช้วิเคราะห์ปฏิทินร่วมกัน</p>' +
+    '<p class="text-gray-400 text-xs mt-1">เลือกพืช แล้วตอบข้อมูลหน้างานสั้น ๆ ระบบเติมข้อมูลวิชาการให้เอง</p>' +
     '<div class="mt-4 space-y-3">' +
-      '<div><label class="text-xs text-gray-400 mb-1 block">ชื่อพืช (ค้นหาหรือเลือก)</label><input id="plant-search" placeholder="พิมพ์เพื่อค้นหา เช่น ลำไย" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 mb-2"><div id="plant-options" class="max-h-40 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50"></div></div>' +
+      '<div><p class="text-[11px] font-bold text-emerald-600 mb-1">1 · เลือกชนิดพืช</p><input id="plant-search" placeholder="ค้นหา เช่น ลำไย" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 mb-2"><div id="plant-options" class="max-h-36 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50"></div></div>' +
       '<div><label class="text-xs text-gray-400 mb-1 block">สายพันธุ์ (ถ้าทราบ)</label><input id="plant-variety" placeholder="เช่น อีดอ, หมอนทอง" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"></div>' +
+      '<div><p class="text-[11px] font-bold text-emerald-600 mb-1">2 · ระบุปริมาณอย่างใดอย่างหนึ่ง</p><div class="grid grid-cols-2 gap-2"><input id="plant-area" inputmode="decimal" placeholder="พื้นที่ (ไร่)" class="h-11 rounded-xl border border-gray-200 px-3 text-sm"><input id="plant-trees" inputmode="numeric" placeholder="จำนวนต้น" class="h-11 rounded-xl border border-gray-200 px-3 text-sm"></div></div>'+
+      '<div><p class="text-[11px] font-bold text-emerald-600 mb-1">3 · สภาพวันนี้</p><select id="plant-bloom" class="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm mb-2"><option value="not_blooming">ยังไม่ออกดอก</option><option value="starting">เริ่มออกดอก</option><option value="medium">ออกดอกปานกลาง</option><option value="high">ออกดอกมาก</option><option value="ended">ดอกหมดแล้ว</option></select><label class="flex items-center gap-2 text-sm text-gray-600"><input id="plant-pesticide" type="checkbox" class="w-4 h-4 accent-rose-500"> มีการใช้สารเคมีในแปลง</label></div>'+
       '<input id="plant-note" placeholder="บันทึกเพิ่มเติม (ถ้ามี)" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400">' +
     '</div>' +
     '<div class="flex gap-2.5 mt-5"><button id="pl-cancel" class="flex-1 h-11 rounded-xl border border-gray-200 text-gray-500 font-semibold text-sm">ยกเลิก</button><button id="pl-save" class="flex-1 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm">บันทึก</button></div>'
@@ -672,8 +676,11 @@ function openPlantForm(geom){
     if(!selectedType){ showToast('info','ยังไม่ได้เลือกพืช','กรุณาเลือกชนิดพืชจากรายการ'); return; }
     const variety=document.getElementById('plant-variety').value.trim();
     const note=document.getElementById('plant-note').value.trim();
-    const newPlant={ id:uid(), type:selectedType, variety:variety, geom:geom, note:note, ownerPhone:session.phone, ownerName:profile.name, createdAt:Date.now() };
-    try{const saved=await api('/api/plants',{method:'POST',body:JSON.stringify({plant_type:selectedType,variety:variety,months:(PLANT_CATALOG[selectedType].months||[]).map(function(m){return m+1;}),geometry:geom})});newPlant.backendId=saved.id;}catch(e){closeModal();showToast('alert','บันทึกไม่สำเร็จ','เซิร์ฟเวอร์ไม่ยอมรับข้อมูลพืช');return;}
+    const area=document.getElementById('plant-area').value.trim(), trees=document.getElementById('plant-trees').value.trim();
+    if(!area&&!trees){showToast('info','ยังไม่ระบุปริมาณ','กรอกพื้นที่เป็นไร่ หรือจำนวนต้น อย่างใดอย่างหนึ่ง');return;}
+    const bloom=document.getElementById('plant-bloom').value,pesticide=document.getElementById('plant-pesticide').checked?'yes':'no';
+    const newPlant={ id:uid(), type:selectedType, variety:variety, geom:geom, note:note,areaRai:area?+area:null,treeCount:trees?+trees:null,bloomStatus:bloom,pesticideUse:pesticide, ownerPhone:session.phone, ownerName:profile.name, createdAt:Date.now() };
+    try{const saved=await api('/api/plants',{method:'POST',body:JSON.stringify({plant_type:selectedType,variety:variety,geometry:geom,area_rai:area||null,tree_count:trees||null,bloom_status:bloom,pesticide_use:pesticide,observed_at:Date.now(),note:note})});newPlant.backendId=saved.id;}catch(e){showToast('alert','บันทึกไม่สำเร็จ',e.message);return;}
     plants.push(newPlant);
     closeModal();
     renderPlants(); renderAllPanels(); showToast('plant','บันทึกแหล่งอาหารแล้ว','เพิ่ม '+PLANT_CATALOG[selectedType].label+' เรียบร้อย');

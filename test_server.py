@@ -139,6 +139,27 @@ class BackendTests(unittest.TestCase):
         status,_=self.request("GET","/ecobee.db")
         self.assertEqual(status,404)
 
+    def test_plant_master_approval_and_simple_field_observation(self):
+        _,org=self.request("POST","/api/org/auth/login",{"email":"admin@ecobee.go.th","password":"test-admin-password"})
+        status,species=self.request("POST","/api/org/plant-species",{
+            "code":"rambutan","thai_name":"เงาะ","scientific_name":"Nephelium lappaceum",
+            "resource_type":"both","nectar_score":4,"pollen_score":3,"flowering_months":[2,3],
+            "source_title":"ข้อมูลทดสอบ","confidence":"medium","status":"draft"
+        },org["token"])
+        self.assertEqual(status,201);self.assertEqual(species["grade"],"A")
+        _,farmer=self.request("POST","/api/auth/register",{"phone":"0801234567","password":"strong-pass","name":"ผู้บันทึกแปลง","farm":"สวนเงาะ"})
+        _,before=self.request("GET","/api/plant-species",token=farmer["token"])
+        self.assertFalse(any(x["code"]=="rambutan" for x in before))
+        self.assertEqual(self.request("PUT","/api/org/plant-species/rambutan",{"status":"approved"},org["token"])[0],200)
+        status,plant=self.request("POST","/api/plants",{
+            "plant_type":"rambutan","geometry":{"type":"point","coords":[13.5,99.8]},
+            "area_rai":2.5,"bloom_status":"starting","pesticide_use":"no"
+        },farmer["token"])
+        self.assertEqual(status,201)
+        _,mapped=self.request("GET","/api/map-data",token=farmer["token"])
+        row=next(x for x in mapped["plants"] if x["id"]==plant["id"])
+        self.assertEqual(row["area_rai"],2.5);self.assertEqual(row["bloom_status"],"starting")
+
     def test_organization_management_uses_backend(self):
         _,farmer=self.request("POST","/api/auth/register",{"phone":"0822222222","password":"old-password","name":"เกษตรกรจัดการ","farm":"ฟาร์มจัดการ"})
         _,org=self.request("POST","/api/org/auth/login",{"email":"admin@ecobee.go.th","password":"test-admin-password"})
