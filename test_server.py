@@ -71,6 +71,19 @@ class BackendTests(unittest.TestCase):
         saved=next(x for x in mapped["hives"] if x["id"]==hive["id"])
         self.assertEqual(saved["radius_km"],1.2)
 
+    def test_farm_boundary_is_private_and_owned_by_farmer(self):
+        _,first=self.request("POST","/api/auth/register",{"phone":"0871000001","password":"safe-pass","name":"เจ้าของพื้นที่","farm":"สวนหนึ่ง"})
+        _,second=self.request("POST","/api/auth/register",{"phone":"0871000002","password":"safe-pass","name":"เกษตรกรอื่น","farm":"สวนสอง"})
+        geometry={"type":"polygon","coords":[[13.50,99.80],[13.50,99.81],[13.51,99.81],[13.51,99.80]]}
+        status,boundary=self.request("POST","/api/farm-boundaries",{"name":"แปลงส่วนตัว","geometry":geometry,"target_species":"cerana","min_spacing_km":0.7},first["token"])
+        self.assertEqual(status,201)
+        _,own_map=self.request("GET","/api/map-data",token=first["token"])
+        _,other_map=self.request("GET","/api/map-data",token=second["token"])
+        self.assertEqual([x["id"] for x in own_map["farm_boundaries"]],[boundary["id"]])
+        self.assertEqual(other_map["farm_boundaries"],[])
+        self.assertEqual(self.request("DELETE","/api/farm-boundaries/"+boundary["id"],token=second["token"])[0],404)
+        self.assertEqual(self.request("DELETE","/api/farm-boundaries/"+boundary["id"],token=first["token"])[0],200)
+
     def test_public_trace_uses_real_aggregates_without_coordinates(self):
         _,auth=self.request("POST","/api/auth/register",{"phone":"0891111111","password":"safe-pass","name":"ผู้ทดสอบสิ่งแวดล้อม","farm":"ฟาร์มข้อมูลจริง"})
         token=auth["token"]

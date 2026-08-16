@@ -81,6 +81,15 @@ create table if not exists ecobee.risk_zones (
   note text not null default '',
   created_at bigint not null
 );
+create table if not exists ecobee.farm_boundaries (
+  id text primary key,
+  user_id bigint not null references ecobee.users(id) on delete cascade,
+  name text not null,
+  geometry text not null,
+  target_species text not null,
+  min_spacing_km double precision not null default 0.5 check(min_spacing_km between 0.1 and 20),
+  created_at bigint not null
+);
 create table if not exists ecobee.movements (
   id text primary key,
   hive_id text not null references ecobee.hives(id) on delete cascade,
@@ -155,6 +164,7 @@ create index if not exists hives_user_id_idx on ecobee.hives(user_id);
 create index if not exists plants_user_id_idx on ecobee.plants(user_id);
 create index if not exists plant_species_status_idx on ecobee.plant_species(status);
 create index if not exists risk_zones_user_id_idx on ecobee.risk_zones(user_id);
+create index if not exists farm_boundaries_user_id_idx on ecobee.farm_boundaries(user_id);
 create index if not exists movements_hive_id_idx on ecobee.movements(hive_id);
 create index if not exists harvest_batches_hive_id_idx on ecobee.harvest_batches(hive_id);
 create index if not exists org_sessions_admin_id_idx on ecobee.org_sessions(admin_id);
@@ -170,6 +180,7 @@ alter table ecobee.hives enable row level security;
 alter table ecobee.plants enable row level security;
 alter table ecobee.plant_species enable row level security;
 alter table ecobee.risk_zones enable row level security;
+alter table ecobee.farm_boundaries enable row level security;
 alter table ecobee.movements enable row level security;
 alter table ecobee.harvest_batches enable row level security;
 alter table ecobee.org_admins enable row level security;

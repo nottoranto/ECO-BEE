@@ -127,6 +127,11 @@ def init_db():
           name TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('safe','danger')),
           geometry TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS farm_boundaries (
+          id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          name TEXT NOT NULL, geometry TEXT NOT NULL, target_species TEXT NOT NULL,
+          min_spacing_km REAL NOT NULL DEFAULT 0.5, created_at INTEGER NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS movements (
           id TEXT PRIMARY KEY, hive_id TEXT NOT NULL REFERENCES hives(id) ON DELETE CASCADE,
           from_lat REAL, from_lng REAL, to_lat REAL NOT NULL, to_lng REAL NOT NULL,
@@ -190,6 +195,12 @@ def init_db():
               status text not null default 'pending' check(status in ('pending','approved','rejected')),
               created_at bigint not null, resolved_at bigint, admin_id bigint references org_admins(id) on delete set null
             );
+            CREATE TABLE IF NOT EXISTS farm_boundaries (
+              id text primary key, user_id bigint not null references users(id) on delete cascade,
+              name text not null, geometry text not null, target_species text not null,
+              min_spacing_km double precision not null default 0.5, created_at bigint not null
+            );
+            CREATE INDEX IF NOT EXISTS farm_boundaries_user_id_idx ON farm_boundaries(user_id);
             """)
         else:
             plant_columns={row["name"] for row in db.execute("PRAGMA table_info(plants)").fetchall()}
@@ -436,11 +447,14 @@ class API(SimpleHTTPRequestHandler):
         zones=db.execute("""SELECT z.*,u.phone owner_phone,u.name owner_name,u.farm owner_farm,
           a.name admin_name FROM risk_zones z LEFT JOIN users u ON u.id=z.user_id
           LEFT JOIN org_admins a ON a.id=z.admin_id ORDER BY z.created_at DESC""").fetchall()
+        boundaries=[] if farmer_id is None else db.execute(
+          "SELECT * FROM farm_boundaries WHERE user_id=? ORDER BY created_at DESC",(farmer_id,)).fetchall()
         visible_hives=[x for x in hives if farmer_id is None or x["user_id"]==farmer_id or bool(x["is_public"])]
         return {
           "hives":[{**dict(x),"mine":farmer_id is not None and x["user_id"]==farmer_id} for x in visible_hives],
           "plants":[{**dict(x),"months":json.loads(x["months"]),"geometry":json.loads(x["geometry"]),"mine":farmer_id is not None and x["user_id"]==farmer_id} for x in plants],
-          "risk_zones":[{**dict(x),"geometry":json.loads(x["geometry"]),"mine":farmer_id is not None and x["user_id"]==farmer_id} for x in zones]
+          "risk_zones":[{**dict(x),"geometry":json.loads(x["geometry"]),"mine":farmer_id is not None and x["user_id"]==farmer_id} for x in zones],
+          "farm_boundaries":[{**dict(x),"geometry":json.loads(x["geometry"])} for x in boundaries]
         }
 
     def validate_shared_update(self, db, role, actor, key, value):
@@ -692,7 +706,7 @@ class API(SimpleHTTPRequestHandler):
                         if not admin:return self.json_response({"error":"unauthorized"},401)
                         cur=db.execute(f"DELETE FROM {table} WHERE id=?",(item_id,))
                     return self.json_response({"ok":True}) if cur.rowcount else self.json_response({"error":"not_found"},404)
-            for prefix,table in (("/api/hives/","hives"),("/api/plants/","plants"),("/api/risk-zones/","risk_zones")):
+            for prefix,table in (("/api/hives/","hives"),("/api/plants/","plants"),("/api/risk-zones/","risk_zones"),("/api/farm-boundaries/","farm_boundaries")):
                 if path.startswith(prefix):
                     item_id=unquote(path[len(prefix):])
                     with connect() as db:
@@ -890,6 +904,17 @@ class API(SimpleHTTPRequestHandler):
                     if status not in ("safe","danger"):return self.json_response({"error":"invalid_status"},400)
                     zid=new_id("zone"); db.execute("INSERT INTO risk_zones(id,user_id,admin_id,name,status,geometry,note,created_at) VALUES(?,?,?,?,?,?,?,?)",(zid,u["id"],None,data["name"],status,json.dumps(geometry),data.get("note",""),now_ms()))
                     return self.json_response({"id":zid},201)
+                if path == "/api/farm-boundaries":
+                    geometry=data["geometry"];geometry_center(geometry)
+                    if geometry.get("type")!="polygon" or len(geometry.get("coords",[]))<3:raise ValueError("invalid_geometry")
+                    species=data.get("target_species","meliponini")
+                    if species not in SPECIES_RADIUS:return self.json_response({"error":"invalid_species"},400)
+                    spacing=optional_number(data.get("min_spacing_km"),0.1,20) or 0.5
+                    if not valid_text(data.get("name",""),1,150):raise ValueError("invalid_name")
+                    boundary_id=new_id("boundary")
+                    db.execute("INSERT INTO farm_boundaries(id,user_id,name,geometry,target_species,min_spacing_km,created_at) VALUES(?,?,?,?,?,?,?)",
+                      (boundary_id,u["id"],data["name"].strip(),json.dumps(geometry),species,spacing,now_ms()))
+                    return self.json_response({"id":boundary_id,"min_spacing_km":spacing},201)
                 if path == "/api/assess":
                     lat,lng=float(data["lat"]),float(data["lng"]); species=data.get("species","meliponini"); radius=SPECIES_RADIUS.get(species,float(data.get("radius_km",.3)))
                     plants=db.execute("SELECT p.*,s.nectar_score,s.pollen_score,s.confidence FROM plants p LEFT JOIN plant_species s ON s.code=p.plant_type").fetchall(); zones=db.execute("SELECT * FROM risk_zones").fetchall()
