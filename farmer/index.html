@@ -484,6 +484,20 @@ async function enterApp(){
 
 /* ================= RENDER LAYERS (with delete buttons in popups) ================= */
 function clearRefs(a){ a.forEach(function(l){ map.removeLayer(l); }); a.length=0; }
+function forwardLayerClickToActiveMode(e, layer){
+  if(!mode) return false;
+  if(e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent);
+  if(layer && layer.closePopup) layer.closePopup();
+  map.closePopup();
+  onMapClick({latlng:e.latlng});
+  setTimeout(function(){ map.closePopup(); },0);
+  return true;
+}
+function armModeFromBoundary(action){
+  map.closePopup();
+  setActiveTab('add');
+  armMode(action);
+}
 function renderHives(){
   clearRefs(hiveRefs); if(!hivesVisible) return;
   myHives.forEach(function(h){
@@ -496,8 +510,10 @@ function renderHives(){
       '<div class="popup-row"><span>รัศมีหาอาหาร</span><b>'+radius+' กม.</b></div>' +
       (h.note?'<div class="popup-row"><span>บันทึก</span><b>'+escapeHtml(h.note)+'</b></div>':'') +
       '<button data-delhive class="popup-del-btn"><i class="fa-solid fa-trash-can mr-1"></i>ลบรังนี้</button>');
+    m.on('click',function(e){forwardLayerClickToActiveMode(e,m);});
     m.on('popupopen', function(e){ const el=e.popup.getElement().querySelector('[data-delhive]'); if(el) el.addEventListener('click', function(){ deleteHive(h.id); }); });
     const c = L.circle([h.lat,h.lng],{ radius: radius*1000, color:'#f59e0b', weight:2, fillColor:'#f59e0b', fillOpacity:0.07 }).addTo(map);
+    c.on('click',function(e){forwardLayerClickToActiveMode(e,c);});
     hiveRefs.push(m,c);
   });
 }
@@ -511,22 +527,12 @@ function renderPlants(){
     if(p.geom.type==='point'){
       const icon=L.divIcon({className:'',html:'<div class="map-pin map-pin-emerald"><i class="fa-solid fa-seedling" style="color:white"></i></div>',iconSize:[34,34],iconAnchor:[17,17]});
       const m=L.marker(p.geom.coords,{icon:icon}).addTo(map); m.bindPopup(html);
-      m.on('click', function(e){
-        if(mode!=='placeHive') return;
-        if(e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent);
-        m.closePopup();
-        preHivePlacementAdvice(e.latlng);
-      });
+      m.on('click',function(e){forwardLayerClickToActiveMode(e,m);});
       if(canDelete) m.on('popupopen', function(e){ const el=e.popup.getElement().querySelector('[data-delplant]'); if(el) el.addEventListener('click', function(){ deletePlant(p.id); }); });
       plantRefs.push(m);
     } else {
       const poly=L.polygon(p.geom.coords,{color:'#10b981',weight:2,fillColor:'#10b981',fillOpacity:0.18}).addTo(map); poly.bindPopup(html);
-      poly.on('click', function(e){
-        if(mode!=='placeHive') return;
-        if(e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent);
-        poly.closePopup();
-        preHivePlacementAdvice(e.latlng);
-      });
+      poly.on('click',function(e){forwardLayerClickToActiveMode(e,poly);});
       if(canDelete) poly.on('popupopen', function(e){ const el=e.popup.getElement().querySelector('[data-delplant]'); if(el) el.addEventListener('click', function(){ deletePlant(p.id); }); });
       plantRefs.push(poly);
     }
@@ -539,6 +545,7 @@ function renderZones(){
     const canDelete = z.ownerPhone === session.phone;
     const poly=L.polygon(z.geom.coords,{color:dz?'#f43f5e':'#10b981',weight:2,fillColor:dz?'#f43f5e':'#10b981',fillOpacity:0.16}).addTo(map);
     poly.bindPopup('<div class="popup-title">'+(dz?'⚠️ '+escapeHtml(z.name||'พื้นที่เสี่ยงสารเคมี'):'✅ '+escapeHtml(z.name||'พื้นที่ปลอดภัย'))+'</div>'+(z.note?'<div class="popup-row"><span>รายละเอียด</span><b>'+escapeHtml(z.note)+'</b></div>':'')+'<div class="popup-row"><span>ผู้บันทึก</span><b>'+escapeHtml(z.ownerName||'ไม่ระบุ')+'</b></div>'+(canDelete?'<button data-delzone class="popup-del-btn"><i class="fa-solid fa-trash-can mr-1"></i>ลบพื้นที่นี้</button>':''));
+    poly.on('click',function(e){forwardLayerClickToActiveMode(e,poly);});
     if(canDelete) poly.on('popupopen', function(e){ const el=e.popup.getElement().querySelector('[data-delzone]'); if(el) el.addEventListener('click', function(){ deleteZone(z.id); }); });
     zoneRefs.push(poly);
   });
@@ -548,9 +555,14 @@ function renderFarmBoundaries(){
   farmBoundaries.forEach(function(b){
     const estimate=boundaryEstimate(b);
     const poly=L.polygon(b.geom.coords,{color:'#2563eb',weight:3,dashArray:'8 6',fillColor:'#3b82f6',fillOpacity:.08}).addTo(map);
-    poly.bindPopup('<div class="popup-title">🗺️ '+escapeHtml(b.name)+' <span style="font-size:10px;color:#2563eb">🔒 ส่วนตัว</span></div><div class="popup-row"><span>พื้นที่โดยประมาณ</span><b>'+estimate.areaRai.toFixed(1)+' ไร่</b></div><div class="popup-row"><span>จำนวนรังที่รองรับ</span><b>รอข้อมูลพืชอาหาร</b></div><div class="popup-row"><span>สถานะ</span><b>'+escapeHtml(estimate.capacityReason)+'</b></div><div class="popup-row"><span>วางแล้ว</span><b>'+estimate.existing+' รัง</b></div><div class="popup-row"><span>พืช/เดือนอาหาร</span><b>'+estimate.plantTypes+' ชนิด · '+estimate.foodMonths+'/12 เดือน</b></div><div class="popup-row"><span>พื้นที่เสี่ยงที่ทับซ้อน</span><b>'+estimate.dangerCount+'</b></div><button data-delboundary class="popup-del-btn"><i class="fa-solid fa-trash-can mr-1"></i>ลบขอบเขตนี้</button>');
-    poly.on('click',function(e){if(mode!=='placeHive')return;if(e.originalEvent)L.DomEvent.stopPropagation(e.originalEvent);poly.closePopup();preHivePlacementAdvice(e.latlng);});
-    poly.on('popupopen',function(e){const el=e.popup.getElement().querySelector('[data-delboundary]');if(el)el.addEventListener('click',function(){deleteFarmBoundary(b.id);});});
+    poly.bindPopup('<div class="popup-title">🗺️ '+escapeHtml(b.name)+' <span style="font-size:10px;color:#2563eb">🔒 ส่วนตัว</span></div><div class="popup-row"><span>พื้นที่โดยประมาณ</span><b>'+estimate.areaRai.toFixed(1)+' ไร่</b></div><div class="popup-row"><span>จำนวนรังที่รองรับ</span><b>รอข้อมูลพืชอาหาร</b></div><div class="popup-row"><span>สถานะ</span><b>'+escapeHtml(estimate.capacityReason)+'</b></div><div class="popup-row"><span>วางแล้ว</span><b>'+estimate.existing+' รัง</b></div><div class="popup-row"><span>พืช/เดือนอาหาร</span><b>'+estimate.plantTypes+' ชนิด · '+estimate.foodMonths+'/12 เดือน</b></div><div class="popup-row"><span>พื้นที่เสี่ยงที่ทับซ้อน</span><b>'+estimate.dangerCount+'</b></div><div class="grid grid-cols-2 gap-2 mt-3"><button data-add-boundary-plant class="h-9 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-semibold">+ เพิ่มพืช</button><button data-add-boundary-hive class="h-9 rounded-lg bg-amber-50 text-amber-700 text-xs font-semibold">+ เพิ่มรัง</button></div><p class="text-[9px] text-gray-400 mt-2">เลือกประเภทแล้วแตะตำแหน่งจริงภายในพื้นที่ได้ แม้มีข้อมูลเดิมซ้อนอยู่</p><button data-delboundary class="popup-del-btn"><i class="fa-solid fa-trash-can mr-1"></i>ลบขอบเขตนี้</button>');
+    poly.on('click',function(e){forwardLayerClickToActiveMode(e,poly);});
+    poly.on('popupopen',function(e){
+      const root=e.popup.getElement();
+      const del=root.querySelector('[data-delboundary]');if(del)del.addEventListener('click',function(){deleteFarmBoundary(b.id);});
+      const addPlant=root.querySelector('[data-add-boundary-plant]');if(addPlant)addPlant.addEventListener('click',function(){armModeFromBoundary('plantPoint');});
+      const addHive=root.querySelector('[data-add-boundary-hive]');if(addHive)addHive.addEventListener('click',function(){armModeFromBoundary('hive');});
+    });
     boundaryRefs.push(poly);
   });
 }
