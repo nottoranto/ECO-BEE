@@ -73,6 +73,17 @@ window.storage = window.storage || {
   @keyframes modalPop { from{opacity:0; transform:scale(.94) translateY(8px);} to{opacity:1; transform:scale(1) translateY(0);} }
   .modal-pop { animation: modalPop .32s var(--ease-soft) both; }
 
+  @keyframes authBeeFloat { 0%,100%{transform:translateY(0) rotate(-3deg)} 50%{transform:translateY(-8px) rotate(3deg)} }
+  @keyframes authRingSpin { to{transform:rotate(360deg)} }
+  @keyframes authProgress { 0%{transform:translateX(-110%)} 55%,100%{transform:translateX(310%)} }
+  @keyframes authDot { 0%,70%,100%{opacity:.28;transform:translateY(0)} 35%{opacity:1;transform:translateY(-3px)} }
+  .auth-loading-bee{animation:authBeeFloat 1.7s ease-in-out infinite;will-change:transform}
+  .auth-loading-ring{position:absolute;inset:-7px;border-radius:1.75rem;border:2px solid rgba(245,158,11,.16);border-top-color:#f59e0b;animation:authRingSpin 1.15s linear infinite}
+  .auth-loading-bar{position:relative;height:5px;border-radius:999px;overflow:hidden;background:#fef3c7}
+  .auth-loading-bar::after{content:"";position:absolute;inset:0;width:34%;border-radius:inherit;background:linear-gradient(90deg,#fbbf24,#f59e0b);animation:authProgress 1.45s var(--ease-soft) infinite}
+  .auth-loading-dots i{display:inline-block;width:5px;height:5px;border-radius:999px;background:#f59e0b;animation:authDot 1.2s ease-in-out infinite}
+  .auth-loading-dots i:nth-child(2){animation-delay:.14s}.auth-loading-dots i:nth-child(3){animation-delay:.28s}
+
   .sheet-collapsed { transform: translateY(calc(100% - 96px)); }
   .sheet-expanded { transform: translateY(0); }
   #sheet { transition: transform .32s var(--ease-soft); }
@@ -135,7 +146,20 @@ window.storage = window.storage || {
       <h1 class="font-display font-bold text-2xl text-gray-800">ECO Bee</h1>
       <p class="text-sm text-gray-400 mt-1">แพลตฟอร์มจัดการการเลี้ยงผึ้ง สำหรับเกษตรกร</p>
     </div>
-    <div id="auth-body" class="bg-white rounded-3xl border border-gray-200 shadow-sm p-6"></div>
+    <div id="auth-body" class="bg-white rounded-3xl border border-gray-200 shadow-sm p-6">
+      <div class="py-2 text-center" role="status" aria-live="polite" aria-label="กำลังเตรียมระบบ ECO Bee">
+        <div class="relative w-14 h-14 mx-auto mb-4">
+          <span class="auth-loading-ring" aria-hidden="true"></span>
+          <span class="auth-loading-bee w-14 h-14 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center" aria-hidden="true">
+            <svg class="w-8 h-8" fill="currentColor"><use href="#icon-bee"/></svg>
+          </span>
+        </div>
+        <p class="font-display font-semibold text-gray-700">กำลังเตรียมข้อมูลของคุณ</p>
+        <div class="auth-loading-dots flex justify-center gap-1.5 mt-2" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="auth-loading-bar mt-5" aria-hidden="true"></div>
+        <p class="text-[10px] text-gray-400 mt-3">กรุณารอสักครู่ ระบบกำลังเชื่อมต่ออย่างปลอดภัย</p>
+      </div>
+    </div>
     <p class="text-center text-[11px] text-gray-400 mt-6">ข้อมูลของคุณถูกจัดเก็บอย่างปลอดภัยในระบบ ECO Bee</p>
   </div>
 </div>
