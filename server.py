@@ -13,7 +13,9 @@ import time
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, urlencode, unquote, urlparse
+from urllib.request import Request, urlopen
 
 try:
     import psycopg
@@ -25,6 +27,7 @@ except ImportError:  # Local SQLite development does not require PostgreSQL extr
 ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get("ECOBEE_DB", ROOT / "ecobee.db"))
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+GOOGLE_WEATHER_API_KEY = os.environ.get("GOOGLE_WEATHER_API_KEY", "").strip()
 PAGE_FILES = {
     "/": ROOT / "farmer" / "index.html",
     "/farmer": ROOT / "farmer" / "index.html",
@@ -383,6 +386,59 @@ def geometry_center(geometry):
     return sum(x[0] for x in coords)/len(coords), sum(x[1] for x in coords)/len(coords)
 
 
+def google_condition_code(condition_type):
+    value=str(condition_type or "").upper()
+    if value in ("CLEAR","MOSTLY_CLEAR"):return 0
+    if value in ("PARTLY_CLOUDY","MOSTLY_CLOUDY","CLOUDY"):return 2
+    if "THUNDER" in value:return 95
+    if "FOG" in value or "HAZE" in value:return 45
+    if any(word in value for word in ("RAIN","DRIZZLE","SHOWER")):return 61
+    return 3
+
+
+def normalize_google_weather(current, daily):
+    """Return the small provider-neutral shape consumed by the farmer UI."""
+    forecast=daily.get("forecastDays",[])
+    def degrees(value):return float((value or {}).get("degrees",0) or 0)
+    def rain_probability(part):return int((((part or {}).get("precipitation") or {}).get("probability") or {}).get("percent",0) or 0)
+    def date_value(day):
+        date=day.get("displayDate") or {}
+        return f"{int(date.get('year',1970)):04d}-{int(date.get('month',1)):02d}-{int(date.get('day',1)):02d}"
+    precipitation=current.get("precipitation") or {}
+    qpf=precipitation.get("qpf") or {}
+    wind=current.get("wind") or {}
+    return {
+      "source":"google_weather",
+      "current":{
+        "temperature_2m":degrees(current.get("temperature")),
+        "relative_humidity_2m":int(current.get("relativeHumidity",0) or 0),
+        "apparent_temperature":degrees(current.get("feelsLikeTemperature")),
+        "precipitation":float(qpf.get("quantity",0) or 0),
+        "weather_code":google_condition_code((current.get("weatherCondition") or {}).get("type")),
+        "wind_speed_10m":float(((wind.get("speed") or {}).get("value",0)) or 0),
+      },
+      "daily":{
+        "time":[date_value(day) for day in forecast],
+        "weather_code":[google_condition_code(((day.get("daytimeForecast") or {}).get("weatherCondition") or {}).get("type")) for day in forecast],
+        "temperature_2m_max":[degrees(day.get("maxTemperature")) for day in forecast],
+        "temperature_2m_min":[degrees(day.get("minTemperature")) for day in forecast],
+        "precipitation_probability_max":[max(rain_probability(day.get("daytimeForecast")),rain_probability(day.get("nighttimeForecast"))) for day in forecast],
+      }
+    }
+
+
+def fetch_google_weather(lat, lng):
+    if not GOOGLE_WEATHER_API_KEY:raise RuntimeError("weather_not_configured")
+    common={"key":GOOGLE_WEATHER_API_KEY,"location.latitude":lat,"location.longitude":lng,"unitsSystem":"METRIC","languageCode":"th"}
+    def get(path, extra=None):
+        query=dict(common);query.update(extra or {})
+        request=Request("https://weather.googleapis.com"+path+"?"+urlencode(query),headers={"Accept":"application/json","User-Agent":"ECOBee/1.0"})
+        with urlopen(request,timeout=12) as response:return json.load(response)
+    current=get("/v1/currentConditions:lookup")
+    daily=get("/v1/forecast/days:lookup",{"days":3,"pageSize":3})
+    return normalize_google_weather(current,daily)
+
+
 class API(SimpleHTTPRequestHandler):
     server_version = "ECOBee/1.0"
     sys_version = ""
@@ -392,7 +448,7 @@ class API(SimpleHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)")
-        self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; connect-src 'self' https://nominatim.openstreetmap.org")
+        self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; connect-src 'self' https://nominatim.openstreetmap.org https://api.open-meteo.com")
         super().end_headers()
 
     def log_message(self, fmt, *args):
@@ -504,7 +560,7 @@ class API(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         try:
-            path = urlparse(self.path).path
+            parsed=urlparse(self.path);path=parsed.path
             page_path = path.rstrip("/") or "/"
             if page_path in PAGE_FILES:
                 data = PAGE_FILES[page_path].read_bytes(); self.send_response(200)
@@ -513,6 +569,15 @@ class API(SimpleHTTPRequestHandler):
             if path == "/api/health":
                 with connect() as db:db.execute("SELECT 1").fetchone()
                 return self.json_response({"status":"ok","service":"eco-bee","database":"postgresql" if DATABASE_URL else "sqlite","time":now_ms()})
+            if path == "/api/weather":
+                with connect() as db:
+                    if not self.require_user(db):return
+                query=parse_qs(parsed.query)
+                lat=float(query.get("lat",[""])[0]);lng=float(query.get("lng",[""])[0])
+                if not (-90<=lat<=90 and -180<=lng<=180):raise ValueError("invalid_coordinates")
+                if not GOOGLE_WEATHER_API_KEY:return self.json_response({"error":"weather_not_configured"},503)
+                try:return self.json_response(fetch_google_weather(lat,lng))
+                except (HTTPError,URLError,TimeoutError):return self.json_response({"error":"weather_provider_unavailable"},502)
             if path.startswith("/api/storage/"):
                 _, _, _, scope, key = path.split("/", 4); key = unquote(key)
                 with connect() as db:

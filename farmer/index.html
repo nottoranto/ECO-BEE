@@ -190,6 +190,7 @@ window.storage = window.storage || {
     <div id="sheet-scroll" class="overflow-y-auto px-4 pb-8" style="max-height:calc(82vh - 104px);overscroll-behavior:contain;">
       <div id="sheet-panel-add" class="sheet-panel pt-4"></div>
       <div id="sheet-panel-calendar" class="sheet-panel hidden pt-4"></div>
+      <div id="sheet-panel-weather" class="sheet-panel hidden pt-4"></div>
       <div id="sheet-panel-mine" class="sheet-panel hidden pt-4"></div>
       <div id="sheet-panel-alerts" class="sheet-panel hidden pt-4"></div>
       <div id="sheet-panel-settings" class="sheet-panel hidden pt-4"></div>
@@ -842,6 +843,7 @@ sheet.addEventListener('touchcancel',function(){sheetTouchStart=null;},{passive:
 const TABS=[
   {id:'add', label:'เพิ่มข้อมูล', icon:'fa-circle-plus'},
   {id:'calendar', label:'ปฏิทินอาหาร', icon:'fa-calendar-days'},
+  {id:'weather', label:'สภาพอากาศ', icon:'fa-cloud-sun'},
   {id:'mine', label:'ข้อมูลของฉัน', icon:'fa-folder-open'},
   {id:'alerts', label:'แจ้งเตือน', icon:'fa-bell'},
   {id:'settings', label:'ตั้งค่า', icon:'fa-gear'}
@@ -861,8 +863,9 @@ function setActiveTab(id){
   document.querySelectorAll('.sheet-tab').forEach(function(b){ const on=b.dataset.tab===id; b.classList.toggle('text-gray-800',on); b.classList.toggle('border-gray-800',on); b.classList.toggle('border-b-2',on); b.classList.toggle('text-gray-400',!on); });
   TABS.forEach(function(t){ document.getElementById('sheet-panel-'+t.id).classList.toggle('hidden', t.id!==id); });
   if(id==='calendar') renderCalendar();
+  if(id==='weather') renderWeatherPanel();
 }
-function renderAllPanels(){ renderAddPanel(); renderCalendar(); renderMinePanel(); renderAlertsPanel(); renderSettingsPanel(); }
+function renderAllPanels(){ renderAddPanel(); renderCalendar(); renderWeatherPanel(false); renderMinePanel(); renderAlertsPanel(); renderSettingsPanel(); }
 
 /* ---- QUICK START: three plain-language steps for farmers ---- */
 function quickStartState(){
@@ -1031,6 +1034,61 @@ function renderCalDetail(data){
     body='<div class="rounded-2xl border p-4 bg-rose-50 border-rose-200"><p class="text-xs font-semibold text-rose-600 mb-1.5">'+title+'</p><p class="text-gray-700 text-sm leading-relaxed">พืชอาหารยังไม่ครอบคลุมรังที่เลือกสำหรับเดือนนี้</p>'+recHtml+'</div>';
   }
   el.innerHTML=body;
+}
+
+/* ================= WEATHER FOR FARMERS ================= */
+let weatherHiveId='map',weatherCache={};
+function weatherCodeLabel(code){
+  if(code===0)return {icon:'fa-sun',label:'ท้องฟ้าแจ่มใส',tone:'amber'};
+  if(code<=3)return {icon:'fa-cloud-sun',label:'มีเมฆบางส่วน',tone:'sky'};
+  if(code===45||code===48)return {icon:'fa-smog',label:'มีหมอก',tone:'gray'};
+  if(code>=95)return {icon:'fa-cloud-bolt',label:'พายุฝนฟ้าคะนอง',tone:'rose'};
+  if(code>=51&&code<=82)return {icon:'fa-cloud-rain',label:'มีฝน',tone:'sky'};
+  return {icon:'fa-cloud',label:'มีเมฆ',tone:'gray'};
+}
+function weatherAdvice(current,daily){
+  const rain=Number(current.precipitation)||0,wind=Number(current.wind_speed_10m)||0,temp=Number(current.temperature_2m),prob=Number(daily&&daily.precipitation_probability_max&&daily.precipitation_probability_max[0])||0;
+  if(current.weather_code>=95)return {level:'alert',title:'งดเปิดรังชั่วคราว',detail:'มีความเสี่ยงพายุฝนฟ้าคะนอง ตรวจฝารังและทางระบายน้ำให้แน่นหนา'};
+  if(rain>0||prob>=60)return {level:'rain',title:'ควรเลื่อนการเปิดตรวจรัง',detail:'มีฝนหรือโอกาสฝนสูง เตรียมหลังคากันฝนและตรวจไม่ให้น้ำเข้ารัง'};
+  if(wind>=25)return {level:'alert',title:'ลมค่อนข้างแรง',detail:'ยึดกล่องรังให้มั่นคง และหลีกเลี่ยงการเคลื่อนย้ายรังในช่วงลมแรง'};
+  if(temp>=35)return {level:'hot',title:'อากาศร้อนจัด',detail:'เพิ่มร่มเงาและแหล่งน้ำสะอาดใกล้รัง พร้อมตรวจการระบายอากาศ'};
+  if(temp<18)return {level:'cold',title:'อากาศค่อนข้างเย็น',detail:'ลดการเปิดรังนาน ๆ และตรวจว่ารังแห้ง ไม่มีลมโกรก'};
+  return {level:'safe',title:'สภาพอากาศเหมาะกับงานทั่วไป',detail:'สามารถตรวจรังได้ตามปกติ แต่ควรสังเกตสภาพจริงบริเวณรังก่อนเริ่มงาน'};
+}
+function weatherPoint(){
+  const hive=myHives.find(function(h){return h.id===weatherHiveId;});
+  if(hive)return {lat:hive.lat,lng:hive.lng,label:hive.name};
+  const c=map.getCenter();return {lat:c.lat,lng:c.lng,label:'จุดกึ่งกลางแผนที่'};
+}
+async function loadWeather(point,force){
+  const key=point.lat.toFixed(3)+','+point.lng.toFixed(3),cached=weatherCache[key];
+  if(!force&&cached&&Date.now()-cached.savedAt<10*60*1000)return cached.data;
+  try{
+    const google=await api('/api/weather?lat='+encodeURIComponent(point.lat)+'&lng='+encodeURIComponent(point.lng));
+    weatherCache[key]={savedAt:Date.now(),data:google};return google;
+  }catch(providerError){ /* Use the no-key provider as a temporary fallback. */ }
+  const params='latitude='+encodeURIComponent(point.lat)+'&longitude='+encodeURIComponent(point.lng)+'&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=3&timezone=auto';
+  const response=await fetch('https://api.open-meteo.com/v1/forecast?'+params);
+  if(!response.ok)throw new Error('weather_unavailable');
+  const data=await response.json();weatherCache[key]={savedAt:Date.now(),data:data};return data;
+}
+function renderWeatherPanel(fetchNow){
+  const p=document.getElementById('sheet-panel-weather');if(!p)return;
+  if(fetchNow===undefined)fetchNow=true;
+  if(weatherHiveId!=='map'&&!myHives.some(function(h){return h.id===weatherHiveId;}))weatherHiveId='map';
+  const point=weatherPoint();
+  const options='<option value="map" '+(weatherHiveId==='map'?'selected':'')+'>ตำแหน่งกึ่งกลางแผนที่</option>'+myHives.map(function(h){return '<option value="'+escapeHtml(h.id)+'" '+(weatherHiveId===h.id?'selected':'')+'>รัง: '+escapeHtml(h.name)+'</option>';}).join('');
+  p.innerHTML='<div class="flex items-start justify-between gap-3 mb-3"><div><h3 class="font-display font-bold text-lg text-gray-800">สภาพอากาศใกล้รัง</h3><p class="text-[11px] text-gray-400 mt-0.5">ใช้วางแผนตรวจรังและดูแลผึ้ง</p></div><button id="weather-refresh" class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 shrink-0" title="อัปเดตสภาพอากาศ"><i class="fa-solid fa-rotate"></i></button></div><label class="text-[11px] font-semibold text-gray-500">เลือกตำแหน่ง</label><select id="weather-location" class="w-full h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 mt-1 mb-3">'+options+'</select><div id="weather-content" class="rounded-2xl border border-sky-100 bg-sky-50/60 p-5 text-center"><i class="fa-solid fa-cloud-sun text-3xl text-sky-400"></i><p class="text-sm font-semibold text-gray-600 mt-2">'+(fetchNow?'กำลังตรวจสภาพอากาศ…':'เลือกแท็บเพื่อดูสภาพอากาศ')+'</p></div><p id="weather-source" class="text-[9px] text-gray-400 text-center mt-3">ข้อมูลสภาพอากาศ · ควรตรวจสภาพจริงบริเวณรังประกอบ</p>';
+  document.getElementById('weather-location').addEventListener('change',function(){weatherHiveId=this.value;renderWeatherPanel(true);});
+  document.getElementById('weather-refresh').addEventListener('click',function(){const pt=weatherPoint();delete weatherCache[pt.lat.toFixed(3)+','+pt.lng.toFixed(3)];renderWeatherPanel(true);});
+  if(!fetchNow)return;
+  loadWeather(point,false).then(function(data){
+    const c=data.current,d=data.daily,condition=weatherCodeLabel(Number(c.weather_code)),advice=weatherAdvice(c,d),el=document.getElementById('weather-content');if(!el)return;
+    const source=document.getElementById('weather-source');if(source)source.textContent=(data.source==='google_weather'?'ข้อมูลโดย Google Weather':'ข้อมูลสำรองโดย Open-Meteo')+' · ควรตรวจสภาพจริงบริเวณรังประกอบ';
+    const dates=(d.time||[]).map(function(date,i){const con=weatherCodeLabel(Number(d.weather_code[i]));return '<div class="rounded-xl bg-white border border-sky-100 p-2 text-center"><p class="text-[10px] text-gray-400">'+new Date(date+'T12:00:00').toLocaleDateString('th-TH',{weekday:'short'})+'</p><i class="fa-solid '+con.icon+' text-sky-500 my-1.5"></i><p class="text-[10px] font-semibold text-gray-600">'+Math.round(d.temperature_2m_min[i])+'–'+Math.round(d.temperature_2m_max[i])+'°</p><p class="text-[9px] text-sky-600 mt-1"><i class="fa-solid fa-droplet"></i> '+(d.precipitation_probability_max[i]||0)+'%</p></div>';}).join('');
+    const colors={safe:'emerald',rain:'sky',alert:'rose',hot:'orange',cold:'indigo'},color=colors[advice.level]||'sky';
+    el.className='';el.innerHTML='<div class="rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-400 text-white p-4 text-left"><div class="flex items-center justify-between"><div><p class="text-[11px] text-white/75">'+escapeHtml(point.label)+'</p><p class="font-display font-bold text-4xl mt-1">'+Math.round(c.temperature_2m)+'°</p><p class="text-xs mt-1"><i class="fa-solid '+condition.icon+' mr-1"></i>'+condition.label+' · รู้สึก '+Math.round(c.apparent_temperature)+'°</p></div><i class="fa-solid '+condition.icon+' text-5xl text-white/80"></i></div><div class="grid grid-cols-3 gap-2 mt-4 text-center"><div class="bg-white/15 rounded-xl py-2"><p class="font-bold text-sm">'+Math.round(c.relative_humidity_2m)+'%</p><p class="text-[9px] text-white/75">ความชื้น</p></div><div class="bg-white/15 rounded-xl py-2"><p class="font-bold text-sm">'+Number(c.wind_speed_10m).toFixed(1)+'</p><p class="text-[9px] text-white/75">ลม กม./ชม.</p></div><div class="bg-white/15 rounded-xl py-2"><p class="font-bold text-sm">'+Number(c.precipitation).toFixed(1)+'</p><p class="text-[9px] text-white/75">ฝน มม.</p></div></div></div><div class="rounded-xl border border-'+color+'-200 bg-'+color+'-50 text-'+color+'-700 p-3 mt-3 text-left"><p class="text-sm font-bold"><i class="fa-solid fa-lightbulb mr-1"></i>'+advice.title+'</p><p class="text-[11px] leading-relaxed mt-1">'+advice.detail+'</p></div><h4 class="font-display font-bold text-sm text-gray-700 text-left mt-4 mb-2">พยากรณ์ 3 วัน</h4><div class="grid grid-cols-3 gap-2">'+dates+'</div>';
+  }).catch(function(){const el=document.getElementById('weather-content');if(el)el.innerHTML='<i class="fa-solid fa-cloud-circle-exclamation text-3xl text-gray-300"></i><p class="text-sm font-semibold text-gray-600 mt-2">ยังดึงข้อมูลอากาศไม่ได้</p><p class="text-[11px] text-gray-400 mt-1">ตรวจอินเทอร์เน็ตแล้วกดปุ่มอัปเดตอีกครั้ง</p>';});
 }
 
 /* ---- MINE panel (list + QR download + delete) ---- */

@@ -1,4 +1,5 @@
 import json, os, tempfile, threading, unittest, urllib.error, urllib.request
+from unittest import mock
 from http.server import ThreadingHTTPServer
 
 tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
@@ -38,6 +39,38 @@ class BackendTests(unittest.TestCase):
     def test_geometry_center(self):
         self.assertEqual(server.geometry_center({"type":"point","coords":[13,99]}),(13.0,99.0))
         self.assertEqual(server.geometry_center({"type":"polygon","coords":[[10,20],[12,24]]}),(11,22))
+
+    def test_google_weather_is_normalized_for_farmer_ui(self):
+        current={
+          "temperature":{"degrees":31.4},"relativeHumidity":68,
+          "feelsLikeTemperature":{"degrees":35.1},
+          "precipitation":{"qpf":{"quantity":1.25}},
+          "weatherCondition":{"type":"RAIN_SHOWERS"},
+          "wind":{"speed":{"value":12.3}}
+        }
+        daily={"forecastDays":[{
+          "displayDate":{"year":2026,"month":8,"day":17},
+          "maxTemperature":{"degrees":34},"minTemperature":{"degrees":26},
+          "daytimeForecast":{"weatherCondition":{"type":"PARTLY_CLOUDY"},"precipitation":{"probability":{"percent":40}}},
+          "nighttimeForecast":{"precipitation":{"probability":{"percent":70}}}
+        }]}
+        data=server.normalize_google_weather(current,daily)
+        self.assertEqual(data["source"],"google_weather")
+        self.assertEqual(data["current"]["temperature_2m"],31.4)
+        self.assertEqual(data["current"]["weather_code"],61)
+        self.assertEqual(data["daily"]["time"],["2026-08-17"])
+        self.assertEqual(data["daily"]["precipitation_probability_max"],[70])
+
+    def test_weather_proxy_requires_farmer_login_and_keeps_key_server_side(self):
+        self.assertEqual(self.request("GET","/api/weather?lat=13.5&lng=99.8")[0],401)
+        _,auth=self.request("POST","/api/auth/register",{"phone":"0867000001","password":"safe-pass","name":"ผู้ทดสอบอากาศ","farm":"ฟาร์มอากาศ"})
+        sample={"source":"google_weather","current":{"temperature_2m":30},"daily":{"time":[]}}
+        with mock.patch.object(server,"GOOGLE_WEATHER_API_KEY","server-only-test-key"), mock.patch.object(server,"fetch_google_weather",return_value=sample) as fetch:
+            status,data=self.request("GET","/api/weather?lat=13.5&lng=99.8",token=auth["token"])
+        self.assertEqual(status,200)
+        self.assertEqual(data,sample)
+        fetch.assert_called_once_with(13.5,99.8)
+        self.assertNotIn("server-only-test-key",json.dumps(data))
 
     def test_postgres_adapter_escapes_literal_percent(self):
         class FakeRaw:
