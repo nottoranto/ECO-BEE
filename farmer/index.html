@@ -182,9 +182,12 @@ window.storage = window.storage || {
 
   <!-- BOTTOM SHEET -->
   <div id="sheet" class="sheet-collapsed absolute z-20 inset-x-0 bottom-0 bg-white rounded-t-3xl shadow-[0_-8px_30px_rgba(0,0,0,0.10)]" style="max-height:82vh;">
-    <button id="sheet-handle" class="w-full flex flex-col items-center pt-2.5 pb-2"><span class="w-10 h-1.5 rounded-full bg-gray-200"></span></button>
+    <button id="sheet-handle" type="button" aria-label="ย่อแถบเมนู" aria-expanded="false" class="relative w-full h-9 flex items-center justify-center">
+      <span class="w-10 h-1.5 rounded-full bg-gray-200"></span>
+      <span class="absolute right-4 text-[11px] font-semibold text-gray-400"><i class="fa-solid fa-chevron-down mr-1"></i>ย่อ</span>
+    </button>
     <div class="flex border-b border-gray-100 px-1 overflow-x-auto no-scrollbar" id="sheet-tabbar"></div>
-    <div class="overflow-y-auto px-4 pb-8" style="max-height:calc(82vh - 104px);">
+    <div id="sheet-scroll" class="overflow-y-auto px-4 pb-8" style="max-height:calc(82vh - 104px);overscroll-behavior:contain;">
       <div id="sheet-panel-add" class="sheet-panel pt-4"></div>
       <div id="sheet-panel-calendar" class="sheet-panel hidden pt-4"></div>
       <div id="sheet-panel-mine" class="sheet-panel hidden pt-4"></div>
@@ -816,8 +819,25 @@ function openFarmBoundaryForm(coords){
 const sheet = document.getElementById('sheet');
 const sheetHandle = document.getElementById('sheet-handle');
 let sheetExpanded = false;
-function setSheet(v){ sheetExpanded=v; sheet.classList.toggle('sheet-expanded', v); sheet.classList.toggle('sheet-collapsed', !v); }
+function setSheet(v){
+  sheetExpanded=!!v;
+  sheet.classList.toggle('sheet-expanded',sheetExpanded);
+  sheet.classList.toggle('sheet-collapsed',!sheetExpanded);
+  sheetHandle.setAttribute('aria-expanded',String(sheetExpanded));
+}
 sheetHandle.addEventListener('click', function(){ setSheet(!sheetExpanded); });
+let sheetTouchStart=null;
+sheet.addEventListener('touchstart',function(e){
+  if(!sheetExpanded||e.touches.length!==1)return;
+  const t=e.touches[0];sheetTouchStart={x:t.clientX,y:t.clientY,fromHeader:!!e.target.closest('#sheet-handle,#sheet-tabbar'),scrollTop:document.getElementById('sheet-scroll').scrollTop};
+},{passive:true});
+sheet.addEventListener('touchend',function(e){
+  if(!sheetTouchStart||!e.changedTouches.length)return;
+  const t=e.changedTouches[0],dx=t.clientX-sheetTouchStart.x,dy=t.clientY-sheetTouchStart.y;
+  if(dy>65&&Math.abs(dy)>Math.abs(dx)*1.25&&(sheetTouchStart.fromHeader||sheetTouchStart.scrollTop<=0))setSheet(false);
+  sheetTouchStart=null;
+},{passive:true});
+sheet.addEventListener('touchcancel',function(){sheetTouchStart=null;},{passive:true});
 
 const TABS=[
   {id:'add', label:'เพิ่มข้อมูล', icon:'fa-circle-plus'},
@@ -830,7 +850,11 @@ let activeTab='add';
 function renderTabbar(){
   const bar=document.getElementById('sheet-tabbar');
   bar.innerHTML=TABS.map(function(t){ return '<button data-tab="'+t.id+'" class="sheet-tab shrink-0 px-3.5 py-3 text-xs sm:text-sm font-semibold transition-colors flex items-center gap-1.5"><i class="fa-solid '+t.icon+'"></i>'+t.label+(t.id==='alerts'?'<span id="tab-alert-badge" class="hidden ml-0.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] flex items-center justify-center">0</span>':'')+'</button>'; }).join('');
-  bar.querySelectorAll('[data-tab]').forEach(function(b){ b.addEventListener('click', function(){ setActiveTab(b.dataset.tab); setSheet(true); }); });
+  bar.querySelectorAll('[data-tab]').forEach(function(b){ b.addEventListener('click', function(){
+    const sameTab=activeTab===b.dataset.tab;
+    if(sameTab&&sheetExpanded){setSheet(false);return;}
+    setActiveTab(b.dataset.tab);setSheet(true);
+  }); });
 }
 function setActiveTab(id){
   activeTab=id;
@@ -1197,7 +1221,10 @@ async function runGeoSearch(q){
 document.addEventListener('click', function(e){ if(!e.target.closest('#search-input')&&!e.target.closest('#search-results')) searchResults.classList.add('hidden'); });
 
 /* ---- menu button opens alerts tab ---- */
-document.getElementById('menu-btn').addEventListener('click', function(){ setActiveTab('alerts'); setSheet(true); });
+document.getElementById('menu-btn').addEventListener('click', function(){
+  if(sheetExpanded&&activeTab==='alerts'){setSheet(false);return;}
+  setActiveTab('alerts');setSheet(true);
+});
 
 /* ================= INIT ================= */
 boot();
