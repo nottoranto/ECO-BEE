@@ -203,6 +203,15 @@ def init_db():
             CREATE INDEX IF NOT EXISTS farm_boundaries_user_id_idx ON farm_boundaries(user_id);
             """)
         else:
+            legacy_columns={
+                "hives":{"admin_id":"INTEGER", "is_public":"INTEGER NOT NULL DEFAULT 0"},
+                "plants":{"admin_id":"INTEGER"},
+                "risk_zones":{"admin_id":"INTEGER"}
+            }
+            for table,columns in legacy_columns.items():
+                existing={row["name"] for row in db.execute(f"PRAGMA table_info({table})").fetchall()}
+                for name,definition in columns.items():
+                    if name not in existing:db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
             plant_columns={row["name"] for row in db.execute("PRAGMA table_info(plants)").fetchall()}
             for name,definition in {
                 "area_rai":"REAL", "tree_count":"INTEGER", "bloom_status":"TEXT NOT NULL DEFAULT 'unknown'",
@@ -269,7 +278,7 @@ def migrate_legacy_map_data(db):
             if db.execute("SELECT 1 FROM hives WHERE id=?",(item_id,)).fetchone():continue
             species=item.get("species","meliponini");radius=float(item.get("radiusKm",SPECIES_RADIUS.get(species,.3)))
             try:db.execute("INSERT INTO hives(id,user_id,admin_id,name,species,lat,lng,radius_km,note,is_public,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",(item_id,user["id"],None,str(item.get("name","รังผึ้ง"))[:150],species,float(item["lat"]),float(item["lng"]),radius,str(item.get("note",""))[:500],0,int(item.get("createdAt",now_ms()))))
-            except (KeyError,ValueError,TypeError):continue
+            except (KeyError,ValueError,TypeError,sqlite3.IntegrityError):continue
     for key,table in (("parkHives","hives"),("plants","plants"),("safetyZones","risk_zones")):
         row=db.execute("SELECT value FROM kv_store WHERE scope='shared' AND key=?",(key,)).fetchone()
         if not row:continue
@@ -288,7 +297,7 @@ def migrate_legacy_map_data(db):
                     db.execute("INSERT INTO plants(id,user_id,admin_id,plant_type,variety,months,geometry,created_at) VALUES(?,?,?,?,?,?,?,?)",(item_id,owner["id"] if owner else None,None if owner else admin_id,item["type"],str(item.get("variety","")),json.dumps(item.get("months",[])),json.dumps(item["geom"]),int(item.get("createdAt",now_ms()))))
                 else:
                     db.execute("INSERT INTO risk_zones(id,user_id,admin_id,name,status,geometry,note,created_at) VALUES(?,?,?,?,?,?,?,?)",(item_id,owner["id"] if owner else None,None if owner else admin_id,str(item.get("name","พื้นที่")),item.get("status","danger"),json.dumps(item["geom"]),str(item.get("note","")),int(item.get("createdAt",now_ms()))))
-            except (KeyError,ValueError,TypeError):continue
+            except (KeyError,ValueError,TypeError,sqlite3.IntegrityError):continue
 
 
 def now_ms(): return int(time.time() * 1000)

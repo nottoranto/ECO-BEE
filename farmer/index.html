@@ -478,6 +478,7 @@ async function enterApp(){
   setActiveTab('add');
   renderAllPanels();
   await checkAgencyAlerts();
+  maybeShowQuickStart();
   setTimeout(function(){ map.invalidateSize(); }, 100);
 }
 
@@ -827,16 +828,42 @@ function setActiveTab(id){
 }
 function renderAllPanels(){ renderAddPanel(); renderCalendar(); renderMinePanel(); renderAlertsPanel(); renderSettingsPanel(); }
 
+/* ---- QUICK START: three plain-language steps for farmers ---- */
+function quickStartState(){
+  const ownPlants=plants.filter(function(p){return p.ownerPhone===session.phone;});
+  const steps=[
+    {id:'farmArea',done:farmBoundaries.length>0,title:'กำหนดขอบเขตสวน',desc:'วาดพื้นที่ของคุณเพื่อรวมข้อมูลพืชและรังให้ถูกแปลง'},
+    {id:'plantArea',done:ownPlants.length>0,title:'เพิ่มพืชอาหาร',desc:'ระบุชนิดพืช พร้อมจำนวนต้นหรือพื้นที่ปลูก'},
+    {id:'hive',done:myHives.length>0,title:'เพิ่มตำแหน่งรัง',desc:'ปักตำแหน่งรัง หลังจากมีขอบเขตและพืชอาหารแล้ว'}
+  ];
+  return {steps:steps,done:steps.filter(function(s){return s.done;}).length,next:steps.find(function(s){return !s.done;})||null};
+}
+function quickStartMarkup(compact){
+  const q=quickStartState(),percent=Math.round(q.done/3*100);
+  const rows=q.steps.map(function(s,i){return '<div class="flex items-start gap-2.5 py-2 '+(i?'border-t border-gray-100':'')+'"><span class="mt-0.5 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold '+(s.done?'bg-emerald-500 text-white':'bg-gray-100 text-gray-500')+'">'+(s.done?'<i class="fa-solid fa-check"></i>':(i+1))+'</span><span class="flex-1"><span class="block text-xs font-semibold '+(s.done?'text-emerald-700':'text-gray-700')+'">'+s.title+'</span>'+(compact?'':'<span class="block text-[10px] text-gray-400 mt-0.5 leading-relaxed">'+s.desc+'</span>')+'</span></div>';}).join('');
+  return '<div class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 mb-4"><div class="flex items-center justify-between"><div><p class="font-display font-bold text-sm text-gray-800">เริ่มใช้งาน ECO Bee</p><p class="text-[10px] text-gray-500 mt-0.5">เสร็จแล้ว '+q.done+'/3 ขั้นตอน</p></div><span class="text-xs font-bold text-amber-700">'+percent+'%</span></div><div class="h-2 rounded-full bg-white overflow-hidden mt-2.5"><div class="h-full rounded-full bg-amber-500" style="width:'+percent+'%"></div></div><div class="mt-2">'+rows+'</div>'+(q.next?'<button data-quick-next="'+q.next.id+'" class="mt-2 w-full h-10 rounded-xl bg-amber-500 text-white text-xs font-semibold"><i class="fa-solid fa-arrow-right mr-1.5"></i>ทำขั้นตอนถัดไป: '+q.next.title+'</button>':'<div class="mt-2 rounded-xl bg-emerald-100 text-emerald-700 text-xs font-semibold text-center py-2.5"><i class="fa-solid fa-circle-check mr-1"></i>พร้อมใช้งานแล้ว</div>')+'</div>';
+}
+function runQuickAction(action){closeModal();setActiveTab('add');setSheet(false);setTimeout(function(){armMode(action);},100);}
+function wireQuickStart(root){const btn=root.querySelector('[data-quick-next]');if(btn)btn.addEventListener('click',function(){runQuickAction(btn.dataset.quickNext);});}
+function maybeShowQuickStart(){
+  const q=quickStartState(),key='ecobee_quickstart_seen_'+session.phone;
+  if(q.done||localStorage.getItem(key))return;
+  openModal('<div class="w-11 h-11 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center mb-3"><i class="fa-solid fa-seedling"></i></div><h3 class="font-display font-bold text-lg text-gray-800">เริ่มใช้งานง่าย ๆ 3 ขั้นตอน</h3><p class="text-xs text-gray-400 mt-1 mb-3">ทำตามลำดับ ระบบจะพาไปยังเครื่องมือที่ต้องใช้</p>'+quickStartMarkup(false)+'<button id="quick-later" class="w-full h-10 rounded-xl border border-gray-200 text-gray-500 text-xs font-semibold">ไว้ทำภายหลัง</button>');
+  wireQuickStart(modalBox);
+  document.getElementById('quick-later').addEventListener('click',function(){localStorage.setItem(key,'1');closeModal();});
+}
+
 /* ---- ADD panel ---- */
 function renderAddPanel(){
   const p=document.getElementById('sheet-panel-add');
-  p.innerHTML='<p class="text-xs text-gray-400 leading-relaxed mb-3">เลือกสิ่งที่ต้องการบันทึก ระบบจะอธิบายวิธีใช้ทีละขั้นบนแผนที่</p><div class="space-y-2.5">'+
+  p.innerHTML=quickStartMarkup(true)+'<p class="text-xs text-gray-400 leading-relaxed mb-3">เลือกสิ่งที่ต้องการบันทึก ระบบจะอธิบายวิธีใช้ทีละขั้นบนแผนที่</p><div class="space-y-2.5">'+
     addRow('hive', 'amber', 'icon-hive', true, 'บันทึกรังผึ้งของฉัน', 'แตะบนแผนที่ ระบบจะวิเคราะห์พืชอาหาร/ระยะรังอื่น/ความเสี่ยงสารเคมีให้ก่อนยืนยัน · ข้อมูลส่วนตัว') +
     addRow('plantPoint', 'emerald', 'fa-solid fa-seedling', false, 'เพิ่มพืชอาหาร (จุดเดียว)', 'แตะบนแผนที่เพื่อระบุต้นไม้/ดอกไม้ 1 ต้น · แชร์ให้ทุกคน') +
     addRow('plantArea', 'emerald', 'fa-solid fa-draw-polygon', false, 'วาดขอบเขตแปลงพืช', 'มีต้นไม้จำนวนมากในพื้นที่เดียว เช่น สวนผลไม้ · แตะหลายจุดล้อมแล้วปิดวง') +
-    addRow('farmArea', 'blue', 'fa-solid fa-map', false, 'กำหนดขอบเขตพื้นที่ของฉัน', 'วาดแนวเขตส่วนตัวเพื่อกำหนดโซนตั้งรังและประเมินจำนวนรังเบื้องต้น') +
+    addRow('farmArea', 'blue', 'fa-solid fa-map', false, 'กำหนดขอบเขตพื้นที่ของฉัน', 'วาดแนวเขตส่วนตัวเพื่อรวมข้อมูลพืชอาหารและเตรียมประเมินจำนวนรัง') +
     addRow('danger', 'rose', 'fa-solid fa-triangle-exclamation', false, 'ทำเครื่องหมายพื้นที่เสี่ยงสารเคมี', 'พื้นที่ที่พบการใช้สารเคมี เพื่อเตือนไม่ให้ตั้งรังใกล้บริเวณนี้') +
     '</div>';
+  wireQuickStart(p);
   p.querySelectorAll('[data-add-action]').forEach(function(btn){ btn.addEventListener('click', function(){ armMode(btn.dataset.addAction); }); });
 }
 function addRow(action, color, icon, isSvg, title, desc){
