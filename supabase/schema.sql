@@ -71,6 +71,20 @@ create table if not exists ecobee.plant_species (
   created_at bigint not null,
   updated_at bigint not null
 );
+create table if not exists ecobee.pollination_evidence (
+  code text primary key,
+  plant_code text not null references ecobee.plant_species(code) on delete cascade,
+  bee_species text not null,
+  headline text not null,
+  context text not null default '',
+  evidence text not null default '{}',
+  recommendation text not null default '',
+  source_title text not null default '',
+  source_pages text not null default '',
+  confidence text not null default 'medium' check(confidence in ('unverified','low','medium','high')),
+  created_at bigint not null,
+  updated_at bigint not null
+);
 create table if not exists ecobee.risk_zones (
   id text primary key,
   user_id bigint references ecobee.users(id) on delete cascade,
@@ -163,6 +177,7 @@ create index if not exists sessions_expires_at_idx on ecobee.sessions(expires_at
 create index if not exists hives_user_id_idx on ecobee.hives(user_id);
 create index if not exists plants_user_id_idx on ecobee.plants(user_id);
 create index if not exists plant_species_status_idx on ecobee.plant_species(status);
+create index if not exists pollination_evidence_plant_code_idx on ecobee.pollination_evidence(plant_code);
 create index if not exists risk_zones_user_id_idx on ecobee.risk_zones(user_id);
 create index if not exists farm_boundaries_user_id_idx on ecobee.farm_boundaries(user_id);
 create index if not exists movements_hive_id_idx on ecobee.movements(hive_id);
@@ -179,6 +194,7 @@ alter table ecobee.sessions enable row level security;
 alter table ecobee.hives enable row level security;
 alter table ecobee.plants enable row level security;
 alter table ecobee.plant_species enable row level security;
+alter table ecobee.pollination_evidence enable row level security;
 alter table ecobee.risk_zones enable row level security;
 alter table ecobee.farm_boundaries enable row level security;
 alter table ecobee.movements enable row level security;

@@ -1,0 +1,48 @@
+{
+  "sources": [
+    "Bee Flora by BeePark (Rod-im P. edited)",
+    "ศึกษาความหลากหลายของพืชอาหารผึ้งและประสิทธิภาพการผสมเกสร"
+  ],
+  "plants": [
+    {"code":"mango","thai_name":"มะม่วง","common_name":"Mango","scientific_name":"Mangifera indica","category":"perennial_crop","resource_type":"both","flowering_months":[1,2,11,12]},
+    {"code":"pomelo","thai_name":"ส้มโอ","common_name":"Pomelo","scientific_name":"Citrus maxima","category":"perennial_crop","resource_type":"both","flowering_months":[1,2,3,11,12]},
+    {"code":"bael","thai_name":"มะตูม","common_name":"Bael","scientific_name":"Aegle marmelos","category":"perennial_crop","resource_type":"both","flowering_months":[3,4,5]},
+    {"code":"kiwi","thai_name":"กีวี","common_name":"Kiwi","scientific_name":"Actinidia deliciosa","category":"perennial_crop","resource_type":"both","flowering_months":[3,4]},
+    {"code":"avocado","thai_name":"อะโวคาโด","common_name":"Avocado","scientific_name":"Persea americana","category":"perennial_crop","resource_type":"both","flowering_months":[11,12]},
+    {"code":"passion_fruit","thai_name":"เสาวรส","common_name":"Passion fruit","scientific_name":"Passiflora edulis","category":"perennial_crop","resource_type":"both","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"strawberry","thai_name":"สตรอว์เบอร์รี","common_name":"Strawberry","scientific_name":"Fragaria × ananassa","category":"perennial_crop","resource_type":"both","flowering_months":[11,12]},
+    {"code":"turkey_berry","thai_name":"มะเขือพวง","common_name":"Turkey berry","scientific_name":"Solanum torvum","category":"perennial_crop","resource_type":"both","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"curcuma_sessilis","thai_name":"กระเจียว","common_name":"Curcuma","scientific_name":"Curcuma sessilis","category":"ornamental","resource_type":"nectar","flowering_months":[4,5,6,7,8,9,10,11]},
+    {"code":"siam_tulip","thai_name":"ปทุมมา","common_name":"Siam tulip","scientific_name":"Curcuma alismatifolia","category":"ornamental","resource_type":"nectar","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"starfruit","thai_name":"มะเฟือง","common_name":"Starfruit","scientific_name":"Averrhoa carambola","category":"perennial_crop","resource_type":"both","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"mulberry","thai_name":"หม่อน","common_name":"Mulberry","scientific_name":"Morus alba","category":"perennial_crop","resource_type":"pollen","flowering_months":[1,2,3]},
+    {"code":"allamanda","thai_name":"บานบุรี","common_name":"Golden trumpet","scientific_name":"Allamanda cathartica","category":"ornamental","resource_type":"pollen","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"rice","thai_name":"ข้าว","common_name":"Rice","scientific_name":"Oryza sativa","category":"annual_crop","resource_type":"pollen","flowering_months":[1,2,3]},
+    {"code":"maize","thai_name":"ข้าวโพด","common_name":"Maize","scientific_name":"Zea mays","category":"annual_crop","resource_type":"pollen","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"pomegranate","thai_name":"ทับทิม","common_name":"Pomegranate","scientific_name":"Punica granatum","category":"perennial_crop","resource_type":"both","flowering_months":[3,4,5]},
+    {"code":"abiu","thai_name":"อะบิว","common_name":"Abiu","scientific_name":"Pouteria caimito","category":"perennial_crop","resource_type":"both","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"hemp","thai_name":"กัญชง","common_name":"Hemp","scientific_name":"Cannabis sativa","category":"annual_crop","resource_type":"both","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"cape_gooseberry","thai_name":"โทงเทงฝรั่ง","common_name":"Cape gooseberry","scientific_name":"Physalis peruviana","category":"annual_crop","resource_type":"both","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"pumpkin","thai_name":"ฟักทองบัตเตอร์นัต","common_name":"Butternut pumpkin","scientific_name":"Cucurbita moschata","category":"annual_crop","resource_type":"both","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"cherry_tomato","thai_name":"มะเขือเทศเชอร์รี","common_name":"Cherry tomato","scientific_name":"Solanum lycopersicum var. cerasiforme","category":"annual_crop","resource_type":"pollen","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"sunn_hemp","thai_name":"ปอเทือง","common_name":"Sunn hemp","scientific_name":"Crotalaria juncea","category":"annual_crop","resource_type":"pollen","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"grape","thai_name":"องุ่น","common_name":"Grape","scientific_name":"Vitis vinifera","category":"perennial_crop","resource_type":"both","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"lychee","thai_name":"ลิ้นจี่","common_name":"Lychee","scientific_name":"Litchi chinensis","category":"perennial_crop","resource_type":"both","flowering_months":[1,2,3]},
+    {"code":"pineapple","thai_name":"สับปะรด","common_name":"Pineapple","scientific_name":"Ananas comosus","category":"perennial_crop","resource_type":"pollen","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"guava","thai_name":"ฝรั่ง","common_name":"Guava","scientific_name":"Psidium guajava","category":"perennial_crop","resource_type":"both","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"raspberry","thai_name":"ราสป์เบอร์รี","common_name":"Raspberry","scientific_name":"Rubus idaeus","category":"perennial_crop","resource_type":"both","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"blackberry","thai_name":"แบล็กเบอร์รี","common_name":"Blackberry","scientific_name":"Rubus subg. Rubus","category":"perennial_crop","resource_type":"both","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"hippeastrum","thai_name":"ว่านสี่ทิศ","common_name":"Hippeastrum","scientific_name":"Hippeastrum johnsonii","category":"ornamental","resource_type":"both","flowering_months":[5,6]},
+    {"code":"tuberose","thai_name":"ซ่อนกลิ่น","common_name":"Tuberose","scientific_name":"Polianthes tuberosa","category":"ornamental","resource_type":"both","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"eucalyptus_globulus","thai_name":"ยูคาลิปตัส","common_name":"Eucalyptus","scientific_name":"Eucalyptus globulus","category":"wild","resource_type":"both","flowering_months":[3,4,5,6]},
+    {"code":"custard_apple","thai_name":"น้อยหน่า","common_name":"Custard apple","scientific_name":"Annona squamosa","category":"perennial_crop","resource_type":"nectar","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"sweet_potato","thai_name":"มันเทศ","common_name":"Sweet potato","scientific_name":"Ipomoea batatas","category":"annual_crop","resource_type":"pollen","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"eucomis","thai_name":"ยูโคมิส","common_name":"Pineapple lily","scientific_name":"Eucomis spp.","category":"ornamental","resource_type":"both","flowering_months":[1,2,3,4,5,6,7,8,9,10,11,12]},
+    {"code":"dendrobium","thai_name":"กล้วยไม้หวาย","common_name":"Dendrobium orchid","scientific_name":"Dendrobium spp.","category":"ornamental","resource_type":"nectar","flowering_months":[3,4]}
+  ],
+  "pollination_evidence": [
+    {"code":"tomato_stingless","plant_code":"cherry_tomato","bee_species":"Tetragonula pagdeni","headline":"ผึ้งชันโรงช่วยเพิ่มการติดผลมะเขือเทศในโรงเรือน","context":"การศึกษาในโรงเรือน สถานีเกษตรหลวงปางดะ","evidence":{"fruit_set_with_bees_percent":90,"fruit_set_without_bees_percent":45,"peak_foraging_time":"09:00–11:00"},"recommendation":"จัดรังใกล้โรงเรือนช่วงดอกบาน และหลีกเลี่ยงกิจกรรมรบกวนช่วง 09:00–11:00","source_pages":"ผลการทดลองมะเขือเทศ"},
+    {"code":"pumpkin_visits","plant_code":"pumpkin","bee_species":"Apis cerana / Apis florea / Tetragonula pagdeni","headline":"ฟักทองต้องได้รับการเยี่ยมดอกหลายครั้งจึงติดผลเต็มที่","context":"การทดลองควบคุมจำนวนครั้งการเข้าดอก","evidence":{"recommended_visits":9,"natural_mean_visits":18},"recommendation":"รักษากิจกรรมผึ้งในช่วงดอกตัวเมียเปิด และหลีกเลี่ยงสารเคมีระหว่างออกดอก","source_pages":"ผลการทดลองฟักทอง"},
+    {"code":"passion_fruit_cerana","plant_code":"passion_fruit","bee_species":"Apis cerana","headline":"ผึ้งโพรงช่วยเพิ่มการติดผลเสาวรสอย่างชัดเจน","context":"การเปรียบเทียบดอกที่ผึ้งเข้าผสมกับดอกที่ไม่มีผึ้ง","evidence":{"fruit_set_with_bees_percent":91.66,"fruit_set_without_bees_percent":20},"recommendation":"คงรังผึ้งโพรงใกล้แปลงในช่วงดอกบาน และงดพ่นสารเคมีในช่วงผึ้งหาอาหาร","source_pages":"ผลการทดลองเสาวรส"}
+  ]
+}

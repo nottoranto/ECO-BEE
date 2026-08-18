@@ -25,6 +25,7 @@ except ImportError:  # Local SQLite development does not require PostgreSQL extr
     dict_row = None
 
 ROOT = Path(__file__).resolve().parent
+RESEARCH_DATA_PATH = ROOT / "data" / "research_plants.json"
 DB_PATH = Path(os.environ.get("ECOBEE_DB", ROOT / "ecobee.db"))
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 GOOGLE_WEATHER_API_KEY = os.environ.get("GOOGLE_WEATHER_API_KEY", "").strip()
@@ -124,6 +125,13 @@ def init_db():
           status TEXT NOT NULL DEFAULT 'draft', created_by INTEGER, created_at INTEGER NOT NULL,
           updated_at INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS pollination_evidence (
+          code TEXT PRIMARY KEY, plant_code TEXT NOT NULL REFERENCES plant_species(code) ON DELETE CASCADE,
+          bee_species TEXT NOT NULL, headline TEXT NOT NULL, context TEXT NOT NULL DEFAULT '',
+          evidence TEXT NOT NULL DEFAULT '{}', recommendation TEXT NOT NULL DEFAULT '',
+          source_title TEXT NOT NULL DEFAULT '', source_pages TEXT NOT NULL DEFAULT '',
+          confidence TEXT NOT NULL DEFAULT 'medium', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS risk_zones (
           id TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
           admin_id INTEGER REFERENCES org_admins(id) ON DELETE SET NULL,
@@ -191,6 +199,14 @@ def init_db():
               source_url text not null default '', confidence text not null default 'unverified',
               status text not null default 'draft', created_by bigint, created_at bigint not null, updated_at bigint not null
             );
+            CREATE TABLE IF NOT EXISTS pollination_evidence (
+              code text primary key, plant_code text not null references plant_species(code) on delete cascade,
+              bee_species text not null, headline text not null, context text not null default '',
+              evidence text not null default '{}', recommendation text not null default '',
+              source_title text not null default '', source_pages text not null default '',
+              confidence text not null default 'medium', created_at bigint not null, updated_at bigint not null
+            );
+            CREATE INDEX IF NOT EXISTS pollination_evidence_plant_code_idx ON pollination_evidence(plant_code);
             ALTER TABLE risk_zones ADD COLUMN IF NOT EXISTS admin_id bigint REFERENCES org_admins(id) ON DELETE SET NULL;
             ALTER TABLE risk_zones ALTER COLUMN user_id DROP NOT NULL;
             CREATE TABLE IF NOT EXISTS password_reset_requests (
@@ -248,6 +264,7 @@ def init_db():
             db.execute("""INSERT INTO plant_species(code,thai_name,flowering_months,status,confidence,created_at,updated_at)
               VALUES(?,?,?,?,?,?,?) ON CONFLICT(code) DO NOTHING""",
               (code,thai_name,json.dumps(months),'approved','unverified',now_ms(),now_ms()))
+        seed_research_data(db)
         migrate_legacy_map_data(db)
         # Remove credentials and obsolete sessions previously stored by the demo UI.
         for key in ("accounts", "admins"):
@@ -263,6 +280,34 @@ def init_db():
         db.execute("DELETE FROM kv_store WHERE scope='private' AND key IN ('session','orgSession')")
         db.execute("DELETE FROM sessions WHERE expires_at<=?",(now_ms(),))
         db.execute("DELETE FROM org_sessions WHERE expires_at<=?",(now_ms(),))
+
+
+def seed_research_data(db):
+    """Import reviewed research facts without overwriting agency-verified values."""
+    if not RESEARCH_DATA_PATH.exists():return
+    data=json.loads(RESEARCH_DATA_PATH.read_text(encoding="utf-8"))
+    source="ศึกษาความหลากหลายของพืชอาหารผึ้งฯ ตาราง 3.1 หน้า 25–27; ตรวจชื่อกับ Bee Flora by BeePark"
+    stamp=now_ms()
+    for item in data.get("plants",[]):
+        values=(item["code"],item["thai_name"],item.get("common_name",""),item.get("scientific_name",""),
+                item.get("category","other"),item.get("resource_type","unknown"),json.dumps(item.get("flowering_months",[])),
+                source,"",'medium','approved',stamp,stamp)
+        existing=db.execute("SELECT confidence,source_title FROM plant_species WHERE code=?",(item["code"],)).fetchone()
+        if not existing:
+            db.execute("""INSERT INTO plant_species(code,thai_name,common_name,scientific_name,category,resource_type,
+              flowering_months,source_title,source_url,confidence,status,created_at,updated_at)
+              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",values)
+        elif existing["confidence"]=='unverified' and not existing["source_title"]:
+            db.execute("""UPDATE plant_species SET thai_name=?,common_name=?,scientific_name=?,category=?,resource_type=?,
+              flowering_months=?,source_title=?,source_url=?,confidence=?,status=?,updated_at=? WHERE code=?""",
+              values[1:11]+(stamp,item["code"]))
+    evidence_source="ศึกษาความหลากหลายของพืชอาหารผึ้งและประสิทธิภาพการผสมเกสร"
+    for item in data.get("pollination_evidence",[]):
+        db.execute("""INSERT INTO pollination_evidence(code,plant_code,bee_species,headline,context,evidence,
+          recommendation,source_title,source_pages,confidence,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+          ON CONFLICT(code) DO NOTHING""",(item["code"],item["plant_code"],item["bee_species"],item["headline"],
+          item.get("context",""),json.dumps(item.get("evidence",{}),ensure_ascii=False),item.get("recommendation",""),
+          evidence_source,item.get("source_pages",""),'medium',stamp,stamp))
 
 
 def migrate_legacy_map_data(db):
@@ -614,6 +659,17 @@ class API(SimpleHTTPRequestHandler):
                     sql="SELECT * FROM plant_species"+("" if role=="org" else " WHERE status='approved'")+" ORDER BY thai_name"
                     rows=db.execute(sql).fetchall()
                 return self.json_response([plant_species_payload(x) for x in rows])
+            if path == "/api/pollination-guidance":
+                with connect() as db:
+                    if not self.require_user(db):return
+                    plant_code=parse_qs(parsed.query).get("plant_code",[""])[0]
+                    sql="SELECT * FROM pollination_evidence";params=()
+                    if plant_code:sql+=" WHERE plant_code=?";params=(plant_code,)
+                    rows=db.execute(sql+" ORDER BY plant_code,code",params).fetchall()
+                result=[]
+                for row in rows:
+                    item=dict(row);item["evidence"]=json.loads(item["evidence"] or "{}");result.append(item)
+                return self.json_response(result)
             if path == "/api/org/farmers":
                 with connect() as db:
                     if not self.org_user(db): return self.json_response({"error":"unauthorized"},401)

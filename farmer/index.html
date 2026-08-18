@@ -258,6 +258,7 @@ const DEFAULT_PLANT_DB = {
   coconut:   { label:'มะพร้าว', icon:'🥥', months:[0,1,2,3,4,5,6,7,8,9,10,11], why:'ออกจั่นตลอดปี เป็นแหล่งเกสรพื้นฐานที่พึ่งได้ทุกเดือน' }
 };
 let PLANT_CATALOG = Object.assign({}, DEFAULT_PLANT_DB);
+let POLLINATION_GUIDANCE = {};
 
 /* ================= UTILITIES ================= */
 function uid(){ return 'id_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
@@ -299,9 +300,11 @@ async function loadArr(key, shared){ const v = await sget(key, shared); return A
 
 async function refreshCatalog(){
   PLANT_CATALOG = Object.assign({}, DEFAULT_PLANT_DB);
+  POLLINATION_GUIDANCE = {};
   try{
-    const rows=await api('/api/plant-species');
-    rows.forEach(function(p){ PLANT_CATALOG[p.code]={label:p.thai_name,icon:'🌿',months:(p.flowering_months||[]).map(function(m){return m-1;}),resourceType:p.resource_type,nectarScore:p.nectar_score,pollenScore:p.pollen_score,nectarAmount:p.nectar_amount,nectarUnit:p.nectar_unit||'',grade:p.grade,confidence:p.confidence,scientificName:p.scientific_name||'',custom:!DEFAULT_PLANT_DB[p.code]}; });
+    const results=await Promise.all([api('/api/plant-species'),api('/api/pollination-guidance')]);
+    results[0].forEach(function(p){ PLANT_CATALOG[p.code]={label:p.thai_name,icon:'🌿',months:(p.flowering_months||[]).map(function(m){return m-1;}),resourceType:p.resource_type,nectarScore:p.nectar_score,pollenScore:p.pollen_score,nectarAmount:p.nectar_amount,nectarUnit:p.nectar_unit||'',grade:p.grade,confidence:p.confidence,scientificName:p.scientific_name||'',sourceTitle:p.source_title||'',custom:!DEFAULT_PLANT_DB[p.code]}; });
+    results[1].forEach(function(item){(POLLINATION_GUIDANCE[item.plant_code]||(POLLINATION_GUIDANCE[item.plant_code]=[])).push(item);});
   }catch(e){ /* ใช้ข้อมูลพื้นฐานระหว่างออฟไลน์ */ }
 }
 
@@ -751,7 +754,7 @@ function openPlantForm(geom){
     '<h3 class="font-display font-bold text-lg text-gray-800">เพิ่มแหล่งอาหารผึ้ง</h3>' +
     '<p class="text-gray-400 text-xs mt-1">เลือกพืช แล้วตอบข้อมูลหน้างานสั้น ๆ ระบบเติมข้อมูลวิชาการให้เอง</p>' +
     '<div class="mt-4 space-y-3">' +
-      '<div><p class="text-[11px] font-bold text-emerald-600 mb-1">1 · เลือกชนิดพืช</p><input id="plant-search" placeholder="ค้นหา เช่น ลำไย" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 mb-2"><div id="plant-options" class="max-h-36 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50"></div></div>' +
+      '<div><p class="text-[11px] font-bold text-emerald-600 mb-1">1 · เลือกชนิดพืช</p><input id="plant-search" placeholder="ค้นหา เช่น ลำไย" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 mb-2"><div id="plant-options" class="max-h-36 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50"></div><div id="plant-research" class="hidden mt-2"></div></div>' +
       '<div><label class="text-xs text-gray-400 mb-1 block">สายพันธุ์ (ถ้าทราบ)</label><input id="plant-variety" placeholder="เช่น อีดอ, หมอนทอง" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"></div>' +
       '<div><p class="text-[11px] font-bold text-emerald-600 mb-1">2 · ระบุปริมาณอย่างใดอย่างหนึ่ง</p><div class="grid grid-cols-2 gap-2"><input id="plant-area" inputmode="decimal" placeholder="พื้นที่ (ไร่)" class="h-11 rounded-xl border border-gray-200 px-3 text-sm"><input id="plant-trees" inputmode="numeric" placeholder="จำนวนต้น" class="h-11 rounded-xl border border-gray-200 px-3 text-sm"></div></div>'+
       '<div><p class="text-[11px] font-bold text-emerald-600 mb-1">3 · สภาพวันนี้</p><select id="plant-bloom" class="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm mb-2"><option value="not_blooming">ยังไม่ออกดอก</option><option value="starting">เริ่มออกดอก</option><option value="medium">ออกดอกปานกลาง</option><option value="high">ออกดอกมาก</option><option value="ended">ดอกหมดแล้ว</option></select><label class="flex items-center gap-2 text-sm text-gray-600"><input id="plant-pesticide" type="checkbox" class="w-4 h-4 accent-rose-500"> มีการใช้สารเคมีในแปลง</label></div>'+
@@ -760,11 +763,21 @@ function openPlantForm(geom){
     '<div class="flex gap-2.5 mt-5"><button id="pl-cancel" class="flex-1 h-11 rounded-xl border border-gray-200 text-gray-500 font-semibold text-sm">ยกเลิก</button><button id="pl-save" class="flex-1 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm">บันทึก</button></div>'
   );
   let selectedType=null;
-  const optBox=document.getElementById('plant-options'), searchBox=document.getElementById('plant-search');
+  const optBox=document.getElementById('plant-options'), searchBox=document.getElementById('plant-search'), researchBox=document.getElementById('plant-research');
+  function showResearch(){
+    if(!selectedType){researchBox.classList.add('hidden');return;}
+    const p=PLANT_CATALOG[selectedType],items=POLLINATION_GUIDANCE[selectedType]||[];
+    const resources={both:'ให้น้ำหวานและเกสร',nectar:'ให้น้ำหวาน',pollen:'ให้เกสร',unknown:'ยังไม่ระบุ'};
+    researchBox.className='mt-2 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-xs text-emerald-800';
+    researchBox.innerHTML='<p class="font-bold">ข้อมูลวิชาการ: '+escapeHtml(resources[p.resourceType]||resources.unknown)+'</p>'+
+      (p.scientificName?'<p class="italic mt-0.5">'+escapeHtml(p.scientificName)+'</p>':'')+
+      (items.length?items.map(function(x){return '<div class="mt-2 pt-2 border-t border-emerald-100"><p class="font-semibold">'+escapeHtml(x.headline)+'</p><p class="mt-1">'+escapeHtml(x.recommendation)+'</p><p class="text-[10px] text-emerald-600 mt-1">ผึ้ง: '+escapeHtml(x.bee_species)+'</p></div>';}).join(''):'')+
+      '<p class="text-[10px] text-emerald-600 mt-2">ข้อมูลนี้ใช้ช่วยวางแผน แต่ยังไม่ใช้คำนวณจำนวนรังจนกว่าจะมีค่าปริมาณอาหารที่หน่วยงานรับรอง</p>';
+  }
   function drawOptions(filter){
     const keys=Object.keys(PLANT_CATALOG).filter(function(k){ const p=PLANT_CATALOG[k]; return !filter || p.label.toLowerCase().indexOf(filter.toLowerCase())!==-1; });
     optBox.innerHTML = keys.length? keys.map(function(k){ const p=PLANT_CATALOG[k]; const sel=selectedType===k; return '<button data-pk="'+k+'" class="w-full text-left px-3.5 py-2.5 text-sm flex items-center gap-2 '+(sel?'bg-emerald-50 text-emerald-700 font-semibold':'text-gray-600 hover:bg-gray-50')+'"><span>'+p.icon+'</span>'+escapeHtml(p.label)+(sel?'<i class="fa-solid fa-check ml-auto text-emerald-500"></i>':'')+'</button>'; }).join('') : '<p class="px-3.5 py-3 text-xs text-gray-400">ไม่พบพืชนี้ในฐานข้อมูล ลองส่งคำขอเพิ่มพรรณไม้ในแท็บตั้งค่า</p>';
-    optBox.querySelectorAll('[data-pk]').forEach(function(b){ b.addEventListener('click', function(){ selectedType=b.dataset.pk; drawOptions(searchBox.value.trim()); }); });
+    optBox.querySelectorAll('[data-pk]').forEach(function(b){ b.addEventListener('click', function(){ selectedType=b.dataset.pk; drawOptions(searchBox.value.trim());showResearch(); }); });
   }
   drawOptions('');
   searchBox.addEventListener('input', function(){ drawOptions(this.value.trim()); });

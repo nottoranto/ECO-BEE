@@ -215,6 +215,27 @@ class BackendTests(unittest.TestCase):
         row=next(x for x in mapped["plants"] if x["id"]==plant["id"])
         self.assertEqual(row["area_rai"],2.5);self.assertEqual(row["bloom_status"],"starting")
 
+    def test_research_calendar_is_seeded_without_fake_nectar_quantity(self):
+        _,farmer=self.request("POST","/api/auth/register",{"phone":"0807654321","password":"strong-pass","name":"ผู้ใช้ข้อมูลวิจัย","farm":"สวนวิจัย"})
+        status,rows=self.request("GET","/api/plant-species",token=farmer["token"])
+        self.assertEqual(status,200)
+        self.assertGreaterEqual(len(rows),35)
+        mango=next(x for x in rows if x["code"]=="mango")
+        self.assertEqual(mango["scientific_name"],"Mangifera indica")
+        self.assertEqual(mango["resource_type"],"both")
+        self.assertEqual(mango["flowering_months"],[1,2,11,12])
+        self.assertEqual(mango["grade"],"unrated")
+        self.assertIsNone(mango["nectar_amount"])
+        self.assertIn("Bee Flora",mango["source_title"])
+
+    def test_pollination_research_guidance_requires_login(self):
+        self.assertEqual(self.request("GET","/api/pollination-guidance?plant_code=passion_fruit")[0],401)
+        _,farmer=self.request("POST","/api/auth/register",{"phone":"0807654322","password":"strong-pass","name":"ผู้ใช้คำแนะนำ","farm":"สวนเสาวรส"})
+        status,rows=self.request("GET","/api/pollination-guidance?plant_code=passion_fruit",token=farmer["token"])
+        self.assertEqual(status,200);self.assertEqual(len(rows),1)
+        self.assertEqual(rows[0]["evidence"]["fruit_set_with_bees_percent"],91.66)
+        self.assertNotIn("lat",json.dumps(rows))
+
     def test_organization_management_uses_backend(self):
         _,farmer=self.request("POST","/api/auth/register",{"phone":"0822222222","password":"old-password","name":"เกษตรกรจัดการ","farm":"ฟาร์มจัดการ"})
         _,org=self.request("POST","/api/org/auth/login",{"email":"admin@ecobee.go.th","password":"test-admin-password"})
