@@ -29,6 +29,7 @@ RESEARCH_DATA_PATH = ROOT / "data" / "research_plants.json"
 DB_PATH = Path(os.environ.get("ECOBEE_DB", ROOT / "ecobee.db"))
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 GOOGLE_WEATHER_API_KEY = os.environ.get("GOOGLE_WEATHER_API_KEY", "").strip()
+GOOGLE_PLACES_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "").strip() or GOOGLE_WEATHER_API_KEY
 PAGE_FILES = {
     "/": ROOT / "farmer" / "index.html",
     "/farmer": ROOT / "farmer" / "index.html",
@@ -431,6 +432,19 @@ def geometry_center(geometry):
     return sum(x[0] for x in coords)/len(coords), sum(x[1] for x in coords)/len(coords)
 
 
+def polygon_area_rai(coords):
+    """Approximate a small WGS84 farm polygon in rai using a local projection."""
+    if not isinstance(coords,list) or len(coords)<3:raise ValueError("invalid_geometry")
+    center_lat=sum(float(point[0]) for point in coords)/len(coords)
+    lat_scale=111_320.0;lng_scale=111_320.0*math.cos(math.radians(center_lat));twice=0.0
+    for index,point in enumerate(coords):
+        previous=coords[index-1]
+        x1=float(previous[1])*lng_scale;y1=float(previous[0])*lat_scale
+        x2=float(point[1])*lng_scale;y2=float(point[0])*lat_scale
+        twice+=x1*y2-x2*y1
+    return abs(twice)/2/1600.0
+
+
 def google_condition_code(condition_type):
     value=str(condition_type or "").upper()
     if value in ("CLEAR","MOSTLY_CLEAR"):return 0
@@ -482,6 +496,46 @@ def fetch_google_weather(lat, lng):
     current=get("/v1/currentConditions:lookup")
     daily=get("/v1/forecast/days:lookup",{"days":3,"pageSize":3})
     return normalize_google_weather(current,daily)
+
+
+def fetch_google_place_suggestions(query, lat=None, lng=None, session_token=""):
+    """Return a small Thai-only Places Autocomplete result safe for the farmer UI."""
+    if not GOOGLE_PLACES_API_KEY:raise RuntimeError("places_not_configured")
+    payload={"input":query,"languageCode":"th","regionCode":"th","includedRegionCodes":["th"]}
+    if lat is not None and lng is not None:
+        payload["locationBias"]={"circle":{"center":{"latitude":lat,"longitude":lng},"radius":50000.0}}
+    if session_token:payload["sessionToken"]=session_token
+    request=Request(
+      "https://places.googleapis.com/v1/places:autocomplete",
+      data=json.dumps(payload).encode(),method="POST",
+      headers={"Content-Type":"application/json","Accept":"application/json","User-Agent":"ECOBee/1.0",
+               "X-Goog-Api-Key":GOOGLE_PLACES_API_KEY,
+               "X-Goog-FieldMask":"suggestions.placePrediction.placeId,suggestions.placePrediction.text,suggestions.placePrediction.structuredFormat"})
+    with urlopen(request,timeout=10) as response:data=json.load(response)
+    results=[]
+    for suggestion in data.get("suggestions",[])[:5]:
+        prediction=suggestion.get("placePrediction") or {}
+        place_id=str(prediction.get("placeId", ""))
+        text=str((prediction.get("text") or {}).get("text", "")).strip()
+        main=str(((prediction.get("structuredFormat") or {}).get("mainText") or {}).get("text", "")).strip()
+        secondary=str(((prediction.get("structuredFormat") or {}).get("secondaryText") or {}).get("text", "")).strip()
+        if place_id and text:results.append({"place_id":place_id,"label":main or text,"address":secondary or text})
+    return results
+
+
+def fetch_google_place_details(place_id, session_token=""):
+    if not GOOGLE_PLACES_API_KEY:raise RuntimeError("places_not_configured")
+    query={"languageCode":"th","regionCode":"th"}
+    if session_token:query["sessionToken"]=session_token
+    request=Request(
+      "https://places.googleapis.com/v1/places/"+place_id+"?"+urlencode(query),
+      headers={"Accept":"application/json","User-Agent":"ECOBee/1.0","X-Goog-Api-Key":GOOGLE_PLACES_API_KEY,
+               "X-Goog-FieldMask":"id,displayName,formattedAddress,location"})
+    with urlopen(request,timeout=10) as response:data=json.load(response)
+    location=data.get("location") or {}
+    lat=float(location["latitude"]);lng=float(location["longitude"])
+    return {"place_id":str(data.get("id",place_id)),"label":str((data.get("displayName") or {}).get("text", "")),
+            "address":str(data.get("formattedAddress", "")),"lat":lat,"lng":lng}
 
 
 class API(SimpleHTTPRequestHandler):
@@ -632,6 +686,24 @@ class API(SimpleHTTPRequestHandler):
                 if not GOOGLE_WEATHER_API_KEY:return self.json_response({"error":"weather_not_configured"},503)
                 try:return self.json_response(fetch_google_weather(lat,lng))
                 except (HTTPError,URLError,TimeoutError):return self.json_response({"error":"weather_provider_unavailable"},502)
+            if path == "/api/places/autocomplete":
+                with connect() as db:
+                    if not self.require_user(db):return
+                query=parse_qs(parsed.query);text=str(query.get("q",[""])[0]).strip()
+                if not valid_text(text,2,120):return self.json_response({"error":"invalid_search_query"},400)
+                lat=optional_number(query.get("lat",[None])[0],-90,90);lng=optional_number(query.get("lng",[None])[0],-180,180)
+                token=str(query.get("session_token",[""])[0])[:80]
+                if not GOOGLE_PLACES_API_KEY:return self.json_response({"error":"places_not_configured"},503)
+                try:return self.json_response({"results":fetch_google_place_suggestions(text,lat,lng,token),"provider":"google"})
+                except (HTTPError,URLError,TimeoutError,ValueError,KeyError):return self.json_response({"error":"places_provider_unavailable"},502)
+            if path == "/api/places/details":
+                with connect() as db:
+                    if not self.require_user(db):return
+                query=parse_qs(parsed.query);place_id=str(query.get("place_id",[""])[0]).strip();token=str(query.get("session_token",[""])[0])[:80]
+                if not place_id or len(place_id)>300 or not all(ch.isalnum() or ch in "_-" for ch in place_id):return self.json_response({"error":"invalid_place_id"},400)
+                if not GOOGLE_PLACES_API_KEY:return self.json_response({"error":"places_not_configured"},503)
+                try:return self.json_response(fetch_google_place_details(place_id,token))
+                except (HTTPError,URLError,TimeoutError,ValueError,KeyError):return self.json_response({"error":"places_provider_unavailable"},502)
             if path.startswith("/api/storage/"):
                 _, _, _, scope, key = path.split("/", 4); key = unquote(key)
                 with connect() as db:
@@ -1035,8 +1107,15 @@ class API(SimpleHTTPRequestHandler):
                     if not species:return self.json_response({"error":"plant_species_not_found"},404)
                     months=sorted(set(int(m) for m in data.get("months",json.loads(species["flowering_months"] or "[]")) if 1<=int(m)<=12))
                     geometry=data["geometry"]; geometry_center(geometry); pid=new_id("plant")
-                    area=optional_number(data.get("area_rai"),0,100000);trees=optional_number(data.get("tree_count"),0,100000000)
-                    if trees is not None:trees=int(trees)
+                    geom_type=geometry.get("type");trees=optional_number(data.get("tree_count"),1,100000000)
+                    if trees is None:return self.json_response({"error":"tree_count_required"},400)
+                    if not float(trees).is_integer():return self.json_response({"error":"invalid_number"},400)
+                    trees=int(trees)
+                    if geom_type=="polygon":
+                        area=polygon_area_rai(geometry.get("coords",[]))
+                        if not 0<area<=100000:return self.json_response({"error":"invalid_geometry"},400)
+                    elif geom_type=="point":area=None
+                    else:return self.json_response({"error":"invalid_geometry"},400)
                     bloom=str(data.get("bloom_status","unknown"));pesticide=str(data.get("pesticide_use","unknown"))
                     if bloom not in ("unknown","not_blooming","starting","medium","high","ended"):raise ValueError("invalid_bloom_status")
                     if pesticide not in ("unknown","no","yes"):raise ValueError("invalid_pesticide_use")
@@ -1044,7 +1123,7 @@ class API(SimpleHTTPRequestHandler):
                     db.execute("""INSERT INTO plants(id,user_id,admin_id,plant_type,variety,months,geometry,area_rai,
                       tree_count,bloom_status,pesticide_use,observed_at,note,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                       (pid,u["id"],None,data["plant_type"],str(data.get("variety",""))[:120],json.dumps(months),json.dumps(geometry),area,trees,bloom,pesticide,observed,str(data.get("note",""))[:500],now_ms()))
-                    return self.json_response({"id":pid},201)
+                    return self.json_response({"id":pid,"area_rai":area,"tree_count":trees},201)
                 if path == "/api/risk-zones":
                     geometry=data["geometry"]; geometry_center(geometry); status=data.get("status")
                     if status not in ("safe","danger"):return self.json_response({"error":"invalid_status"},400)

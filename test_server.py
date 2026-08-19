@@ -1,4 +1,4 @@
-import json, os, tempfile, threading, unittest, urllib.error, urllib.request
+import json, os, tempfile, threading, unittest, urllib.error, urllib.parse, urllib.request
 from pathlib import Path
 from unittest import mock
 from http.server import ThreadingHTTPServer
@@ -57,6 +57,15 @@ class BackendTests(unittest.TestCase):
         self.assertIn("escapeHtml(plant.icon||'🌿')",farmer)
         self.assertIn("icon:plantIconFor(p.code,p.thai_name)",farmer)
 
+    def test_plant_form_calculates_plot_area_and_only_asks_tree_count_for_points(self):
+        farmer=(Path(__file__).resolve().parent/"farmer/index.html").read_text()
+        self.assertIn("พื้นที่คำนวณอัตโนมัติ",farmer)
+        self.assertIn("ในขอบเขตนี้มีพืชประมาณกี่ต้น?",farmer)
+        self.assertIn("การเพิ่มแบบจุดจะไม่บันทึกพื้นที่ปลูก",farmer)
+        self.assertIn("tree_count:treeCount",farmer)
+        self.assertIn("polygonAreaRai(geom.coords)",farmer)
+        self.assertNotIn('id="plant-area"',farmer)
+
     def test_distance(self):
         self.assertAlmostEqual(server.haversine(13.5282,99.8134,13.5282,99.8134),0)
         self.assertGreater(server.haversine(13.5282,99.8134,13.5382,99.8134),1)
@@ -85,6 +94,30 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(data["current"]["weather_code"],61)
         self.assertEqual(data["daily"]["time"],["2026-08-17"])
         self.assertEqual(data["daily"]["precipitation_probability_max"],[70])
+
+    def test_places_search_is_private_thai_and_resolves_a_selected_place(self):
+        _,auth=self.request("POST","/api/auth/register",{"phone":"0867000002","password":"safe-pass","name":"ผู้ทดสอบค้นหา","farm":"ฟาร์มค้นหา"})
+        suggestions=[{"place_id":"thai_place_1","label":"ตลาดน้ำอัมพวา","address":"อำเภออัมพวา สมุทรสงคราม"}]
+        details={"place_id":"thai_place_1","label":"ตลาดน้ำอัมพวา","address":"อำเภออัมพวา สมุทรสงคราม","lat":13.425,"lng":99.955}
+        with mock.patch.object(server,"GOOGLE_PLACES_API_KEY","server-only-places-key"), \
+             mock.patch.object(server,"fetch_google_place_suggestions",return_value=suggestions) as autocomplete, \
+             mock.patch.object(server,"fetch_google_place_details",return_value=details) as place_details:
+            encoded_query=urllib.parse.quote("ตลาดน้ำอัมพวา")
+            status,data=self.request("GET",f"/api/places/autocomplete?q={encoded_query}&lat=13.5&lng=99.8&session_token=session-1",token=auth["token"])
+            detail_status,detail=self.request("GET","/api/places/details?place_id=thai_place_1&session_token=session-1",token=auth["token"])
+        self.assertEqual(status,200);self.assertEqual(data["results"],suggestions)
+        self.assertEqual(detail_status,200);self.assertEqual(detail,details)
+        autocomplete.assert_called_once_with("ตลาดน้ำอัมพวา",13.5,99.8,"session-1")
+        place_details.assert_called_once_with("thai_place_1","session-1")
+        self.assertNotIn("server-only-places-key",json.dumps(data)+json.dumps(detail))
+
+    def test_farmer_search_combines_local_data_with_server_side_google_places(self):
+        farmer=(Path(__file__).resolve().parent/"farmer/index.html").read_text()
+        self.assertIn("/api/places/autocomplete",farmer)
+        self.assertIn("/api/places/details",farmer)
+        self.assertIn("includedRegionCodes",Path(__file__).resolve().parent.joinpath("server.py").read_text())
+        self.assertIn("ผลการค้นหาสถานที่โดย Google",farmer)
+        self.assertNotIn("nominatim.openstreetmap.org/search",farmer)
 
     def test_weather_proxy_requires_farmer_login_and_keeps_key_server_side(self):
         self.assertEqual(self.request("GET","/api/weather?lat=13.5&lng=99.8")[0],401)
@@ -146,7 +179,7 @@ class BackendTests(unittest.TestCase):
         _,auth=self.request("POST","/api/auth/register",{"phone":"0891111111","password":"safe-pass","name":"ผู้ทดสอบสิ่งแวดล้อม","farm":"ฟาร์มข้อมูลจริง"})
         token=auth["token"]
         _,hive=self.request("POST","/api/hives",{"name":"รังข้อมูลจริง","species":"cerana","lat":13.5,"lng":99.8},token)
-        self.request("POST","/api/plants",{"plant_type":"longan","variety":"อีดอ","months":[1,2,3],"geometry":{"type":"point","coords":[13.501,99.801]}},token)
+        self.request("POST","/api/plants",{"plant_type":"longan","variety":"อีดอ","months":[1,2,3],"tree_count":8,"geometry":{"type":"point","coords":[13.501,99.801]}},token)
         self.request("POST","/api/risk-zones",{"name":"พื้นที่เสี่ยงจริง","status":"danger","geometry":{"type":"point","coords":[13.502,99.802]}},token)
         self.request("POST","/api/movements",{"hive_id":hive["id"],"lat":13.503,"lng":99.803,"reason":"ย้ายตามฤดู"},token)
         _,batch=self.request("POST","/api/harvests",{"hive_id":hive["id"],"product":"น้ำผึ้งลำไย","quantity_kg":2},token)
@@ -197,7 +230,7 @@ class BackendTests(unittest.TestCase):
     def test_map_data_is_single_relational_source(self):
         _,farmer=self.request("POST","/api/auth/register",{"phone":"0871234567","password":"strong-pass","name":"เจ้าของแผนที่","farm":"ฟาร์มกลาง"})
         _,hive=self.request("POST","/api/hives",{"name":"รังกลาง","species":"cerana","lat":13.5,"lng":99.8},farmer["token"])
-        self.request("POST","/api/plants",{"plant_type":"longan","months":[1,2],"geometry":{"type":"point","coords":[13.5,99.8]}},farmer["token"])
+        self.request("POST","/api/plants",{"plant_type":"longan","months":[1,2],"tree_count":3,"geometry":{"type":"point","coords":[13.5,99.8]}},farmer["token"])
         _,data=self.request("GET","/api/map-data",token=farmer["token"])
         self.assertTrue(any(x["id"]==hive["id"] and x["mine"] for x in data["hives"]))
         self.assertEqual(len(data["plants"]),1)
@@ -206,8 +239,8 @@ class BackendTests(unittest.TestCase):
         _,owner=self.request("POST","/api/auth/register",{"phone":"0871234501","password":"strong-pass","name":"เจ้าของมุมมอง","farm":"สวนหนึ่ง"})
         _,other=self.request("POST","/api/auth/register",{"phone":"0871234502","password":"strong-pass","name":"เกษตรกรอื่น","farm":"สวนสอง"})
         _,other_hive=self.request("POST","/api/hives",{"name":"รังส่วนตัว","species":"cerana","lat":13.51,"lng":99.81},other["token"])
-        _,near=self.request("POST","/api/plants",{"plant_type":"longan","geometry":{"type":"point","coords":[13.51,99.81]}},other["token"])
-        _,far=self.request("POST","/api/plants",{"plant_type":"longan","geometry":{"type":"point","coords":[18.7,98.9]}},other["token"])
+        _,near=self.request("POST","/api/plants",{"plant_type":"longan","tree_count":2,"geometry":{"type":"point","coords":[13.51,99.81]}},other["token"])
+        _,far=self.request("POST","/api/plants",{"plant_type":"longan","tree_count":4,"geometry":{"type":"point","coords":[18.7,98.9]}},other["token"])
         status,data=self.request("GET","/api/map-data?bounds=13.4,99.7,13.6,99.9",token=owner["token"])
         self.assertEqual(status,200)
         self.assertFalse(any(x["id"]==other_hive["id"] for x in data["hives"]))
@@ -245,12 +278,29 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(self.request("PUT","/api/org/plant-species/rambutan",{"status":"approved"},org["token"])[0],200)
         status,plant=self.request("POST","/api/plants",{
             "plant_type":"rambutan","geometry":{"type":"point","coords":[13.5,99.8]},
-            "area_rai":2.5,"bloom_status":"starting","pesticide_use":"no"
+            "area_rai":2.5,"tree_count":5,"bloom_status":"starting","pesticide_use":"no"
         },farmer["token"])
         self.assertEqual(status,201)
         _,mapped=self.request("GET","/api/map-data",token=farmer["token"])
         row=next(x for x in mapped["plants"] if x["id"]==plant["id"])
-        self.assertEqual(row["area_rai"],2.5);self.assertEqual(row["bloom_status"],"starting")
+        self.assertIsNone(row["area_rai"]);self.assertEqual(row["tree_count"],5)
+        self.assertEqual(row["bloom_status"],"starting")
+
+        status,missing=self.request("POST","/api/plants",{
+            "plant_type":"rambutan","geometry":{"type":"point","coords":[13.5,99.8]}
+        },farmer["token"])
+        self.assertEqual(status,400);self.assertEqual(missing["error"],"tree_count_required")
+
+        status,polygon=self.request("POST","/api/plants",{
+            "plant_type":"rambutan","tree_count":120,"area_rai":999,
+            "geometry":{"type":"polygon","coords":[[13.5,99.8],[13.5,99.801],[13.501,99.801],[13.501,99.8]]}
+        },farmer["token"])
+        self.assertEqual(status,201)
+        self.assertGreater(polygon["area_rai"],7);self.assertLess(polygon["area_rai"],8)
+        _,mapped=self.request("GET","/api/map-data",token=farmer["token"])
+        polygon_row=next(x for x in mapped["plants"] if x["id"]==polygon["id"])
+        self.assertAlmostEqual(polygon_row["area_rai"],polygon["area_rai"],places=6)
+        self.assertEqual(polygon_row["tree_count"],120)
 
     def test_research_calendar_is_seeded_without_fake_nectar_quantity(self):
         _,farmer=self.request("POST","/api/auth/register",{"phone":"0807654321","password":"strong-pass","name":"ผู้ใช้ข้อมูลวิจัย","farm":"สวนวิจัย"})

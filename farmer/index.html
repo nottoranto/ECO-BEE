@@ -70,10 +70,13 @@ window.storage = window.storage || {
   .farm-summary { min-width:104px; padding:7px 9px; border-radius:12px; background:rgba(255,255,255,.94); border:2px solid #60a5fa; box-shadow:0 3px 10px rgba(15,23,42,.18); color:#1f2937; text-align:center; font-weight:800; font-size:11px; white-space:nowrap; }
   .farm-summary small { display:block; margin-top:2px; color:#6b7280; font-size:9px; font-weight:600; }
   .map-pin-amber { background:#f59e0b; } .map-pin-emerald { background:#10b981; } .map-pin-rose { background:#f43f5e; }
+  .map-pin-search { position:relative; width:30px; height:30px; border-radius:999px; background:#2563eb; border:4px solid white; box-shadow:0 3px 12px rgba(37,99,235,.5); }
+  .map-pin-search::after { content:""; position:absolute; inset:-9px; border:2px solid rgba(37,99,235,.55); border-radius:999px; animation:searchPinPulse 1.6s ease-out infinite; }
   .map-pin i, .map-pin svg { font-size:calc(14px * var(--ui-scale)); width:calc(16px * var(--ui-scale)); height:calc(16px * var(--ui-scale)); }
 
   .live-dot { width:8px; height:8px; border-radius:9999px; background:#10b981; animation: livePulse 1.6s ease-in-out infinite; }
   @keyframes livePulse { 0%,100%{ box-shadow:0 0 0 0 rgba(16,185,129,.55); } 70%{ box-shadow:0 0 0 6px rgba(16,185,129,0); } }
+  @keyframes searchPinPulse { 0%{opacity:.9;transform:scale(.55)} 80%,100%{opacity:0;transform:scale(1.35)} }
 
   @keyframes fadeInUp { from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);} }
   .animate-fade-in { animation: fadeInUp .5s var(--ease-soft) both; }
@@ -193,7 +196,7 @@ window.storage = window.storage || {
       <span id="alert-dot" class="hidden absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center">0</span>
     </button>
     <div class="relative flex-1">
-      <input id="search-input" type="search" autocomplete="off" placeholder="ค้นหาสวน / รังผึ้ง / ชนิดพืช..." class="w-full h-11 rounded-2xl bg-white shadow-md pl-10 pr-4 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400">
+      <input id="search-input" type="search" autocomplete="off" placeholder="ค้นหาสถานที่ หรือพิกัด GPS..." class="w-full h-11 rounded-2xl bg-white shadow-md pl-10 pr-4 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400">
       <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
       <div id="search-results" class="hidden absolute top-[52px] inset-x-0 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden max-h-72 overflow-y-auto z-40"></div>
     </div>
@@ -375,7 +378,7 @@ async function api(path, options){
   options=options||{}; options.headers=Object.assign({'Content-Type':'application/json'},options.headers||{});
   if(session&&session.token) options.headers.Authorization='Bearer '+session.token;
   const response=await fetch(path,options), data=await response.json();
-  if(!response.ok){ const labels={unauthorized:'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่',invalid_credentials:'เบอร์โทรหรือรหัสผ่านไม่ถูกต้อง',phone_exists:'เบอร์โทรนี้สมัครสมาชิกแล้ว',invalid_phone:'กรุณากรอกเบอร์โทร 9–10 หลัก',weak_password:'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',missing_fields:'กรุณากรอกข้อมูลให้ครบ',not_found:'ไม่พบข้อมูลที่ต้องการ',plant_species_not_found:'พืชชนิดนี้ยังไม่ได้รับอนุมัติจากหน่วยงาน',invalid_number:'พื้นที่หรือจำนวนต้นไม่ถูกต้อง',invalid_geometry:'ขอบเขตพื้นที่ไม่ถูกต้อง กรุณาวาดใหม่อย่างน้อย 3 จุด',invalid_species:'ชนิดผึ้งไม่ถูกต้อง',invalid_name:'กรุณาระบุชื่อข้อมูล',invalid_bloom_status:'สถานะการออกดอกไม่ถูกต้อง',invalid_pesticide_use:'ข้อมูลการใช้สารเคมีไม่ถูกต้อง',hive_not_found:'ไม่พบรังผึ้งที่เลือก',invalid_quantity:'ปริมาณต้องมากกว่า 0',internal_error:'ระบบขัดข้อง กรุณาลองใหม่อีกครั้ง'}; const err=new Error(labels[data.error]||data.error||'ไม่สามารถเชื่อมต่อระบบได้');err.code=data.error;err.status=response.status;throw err; }
+  if(!response.ok){ const labels={unauthorized:'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่',invalid_credentials:'เบอร์โทรหรือรหัสผ่านไม่ถูกต้อง',phone_exists:'เบอร์โทรนี้สมัครสมาชิกแล้ว',invalid_phone:'กรุณากรอกเบอร์โทร 9–10 หลัก',weak_password:'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',missing_fields:'กรุณากรอกข้อมูลให้ครบ',not_found:'ไม่พบข้อมูลที่ต้องการ',plant_species_not_found:'พืชชนิดนี้ยังไม่ได้รับอนุมัติจากหน่วยงาน',invalid_number:'จำนวนต้นไม่ถูกต้อง กรุณากรอกจำนวนเต็มตั้งแต่ 1 ต้นขึ้นไป',tree_count_required:'กรุณาระบุจำนวนต้นของพืช',invalid_geometry:'ขอบเขตพื้นที่ไม่ถูกต้อง กรุณาวาดใหม่อย่างน้อย 3 จุด',invalid_species:'ชนิดผึ้งไม่ถูกต้อง',invalid_name:'กรุณาระบุชื่อข้อมูล',invalid_bloom_status:'สถานะการออกดอกไม่ถูกต้อง',invalid_pesticide_use:'ข้อมูลการใช้สารเคมีไม่ถูกต้อง',hive_not_found:'ไม่พบรังผึ้งที่เลือก',invalid_quantity:'ปริมาณต้องมากกว่า 0',invalid_search_query:'กรุณาพิมพ์ชื่อสถานที่อย่างน้อย 2 ตัวอักษร',places_not_configured:'ยังไม่ได้เปิดใช้ระบบค้นหาสถานที่',places_provider_unavailable:'ระบบค้นหาสถานที่ภายนอกไม่พร้อมใช้งาน',invalid_place_id:'ข้อมูลสถานที่ไม่ถูกต้อง',internal_error:'ระบบขัดข้อง กรุณาลองใหม่อีกครั้ง'}; const err=new Error(labels[data.error]||data.error||'ไม่สามารถเชื่อมต่อระบบได้');err.code=data.error;err.status=response.status;throw err; }
   return data;
 }
 
@@ -514,6 +517,7 @@ function initMap(center){
   map.createPane('hiveRangePane');map.getPane('hiveRangePane').style.zIndex=440;
   map.createPane('plantMarkerPane');map.getPane('plantMarkerPane').style.zIndex=650;
   map.createPane('summaryPane');map.getPane('summaryPane').style.zIndex=680;
+  map.createPane('searchMarkerPane');map.getPane('searchMarkerPane').style.zIndex=720;
   map.createPane('hiveMarkerPane');map.getPane('hiveMarkerPane').style.zIndex=750;
   satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom:19, attribution:'Tiles &copy; Esri' });
   streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'&copy; OpenStreetMap' });
@@ -880,6 +884,10 @@ function openHiveForm(latlng){
 }
 
 function openPlantForm(geom){
+  const isPlantArea=geom.type==='polygon',calculatedArea=isPlantArea?polygonAreaRai(geom.coords):null;
+  const quantityFields=isPlantArea?
+    '<div><p class="text-[11px] font-bold text-emerald-600 mb-1">2 · จำนวนพืชในแปลง</p><div class="rounded-xl border border-emerald-100 bg-emerald-50 px-3.5 py-3 mb-2 flex items-center justify-between gap-3"><span class="text-xs text-emerald-700"><i class="fa-solid fa-ruler-combined mr-1.5"></i>พื้นที่คำนวณอัตโนมัติ</span><strong class="text-sm text-emerald-800">'+calculatedArea.toLocaleString('th-TH',{maximumFractionDigits:2})+' ไร่</strong></div><label class="text-xs text-gray-400 mb-1 block">ในขอบเขตนี้มีพืชประมาณกี่ต้น?</label><input id="plant-trees" type="number" min="1" step="1" inputmode="numeric" placeholder="เช่น 120 ต้น" class="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm"></div>':
+    '<div><p class="text-[11px] font-bold text-emerald-600 mb-1">2 · จำนวนต้น ณ จุดนี้</p><label class="text-xs text-gray-400 mb-1 block">บริเวณที่แตะมีพืชชนิดนี้กี่ต้น?</label><input id="plant-trees" type="number" min="1" step="1" inputmode="numeric" placeholder="เช่น 1 ต้น" class="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm"><p class="text-[10px] text-gray-400 mt-1.5">การเพิ่มแบบจุดจะไม่บันทึกพื้นที่ปลูก</p></div>';
   openModal(
     '<div class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center mb-4"><i class="fa-solid fa-seedling"></i></div>' +
     '<h3 class="font-display font-bold text-lg text-gray-800">เพิ่มแหล่งอาหารผึ้ง</h3>' +
@@ -887,7 +895,7 @@ function openPlantForm(geom){
     '<div class="mt-4 space-y-3">' +
       '<div><p class="text-[11px] font-bold text-emerald-600 mb-1">1 · เลือกชนิดพืช</p><input id="plant-search" placeholder="ค้นหา เช่น ลำไย" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 mb-2"><div id="plant-options" class="max-h-36 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50"></div><div id="plant-research" class="hidden mt-2"></div></div>' +
       '<div><label class="text-xs text-gray-400 mb-1 block">สายพันธุ์ (ถ้าทราบ)</label><input id="plant-variety" placeholder="เช่น อีดอ, หมอนทอง" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"></div>' +
-      '<div><p class="text-[11px] font-bold text-emerald-600 mb-1">2 · ระบุปริมาณอย่างใดอย่างหนึ่ง</p><div class="grid grid-cols-2 gap-2"><input id="plant-area" inputmode="decimal" placeholder="พื้นที่ (ไร่)" class="h-11 rounded-xl border border-gray-200 px-3 text-sm"><input id="plant-trees" inputmode="numeric" placeholder="จำนวนต้น" class="h-11 rounded-xl border border-gray-200 px-3 text-sm"></div></div>'+
+      quantityFields+
       '<div><p class="text-[11px] font-bold text-emerald-600 mb-1">3 · สภาพวันนี้</p><select id="plant-bloom" class="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm mb-2"><option value="not_blooming">ยังไม่ออกดอก</option><option value="starting">เริ่มออกดอก</option><option value="medium">ออกดอกปานกลาง</option><option value="high">ออกดอกมาก</option><option value="ended">ดอกหมดแล้ว</option></select><label class="flex items-center gap-2 text-sm text-gray-600"><input id="plant-pesticide" type="checkbox" class="w-4 h-4 accent-rose-500"> มีการใช้สารเคมีในแปลง</label></div>'+
       '<input id="plant-note" placeholder="บันทึกเพิ่มเติม (ถ้ามี)" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400">' +
     '</div>' +
@@ -917,13 +925,13 @@ function openPlantForm(geom){
     if(!selectedType){ showToast('info','ยังไม่ได้เลือกพืช','กรุณาเลือกชนิดพืชจากรายการ'); return; }
     const variety=document.getElementById('plant-variety').value.trim();
     const note=document.getElementById('plant-note').value.trim();
-    const area=document.getElementById('plant-area').value.trim(), trees=document.getElementById('plant-trees').value.trim();
-    if(!area&&!trees){showToast('info','ยังไม่ระบุปริมาณ','กรอกพื้นที่เป็นไร่ หรือจำนวนต้น อย่างใดอย่างหนึ่ง');return;}
+    const trees=document.getElementById('plant-trees').value.trim(),treeCount=Number(trees);
+    if(!trees||!Number.isInteger(treeCount)||treeCount<1){showToast('info','กรุณาระบุจำนวนต้น','กรอกจำนวนเต็มตั้งแต่ 1 ต้นขึ้นไป');return;}
     const button=this,busy=beginAction(button,'save-plant','กำลังบันทึก…');if(!busy)return;
     try{
     const bloom=document.getElementById('plant-bloom').value,pesticide=document.getElementById('plant-pesticide').checked?'yes':'no';
-    const newPlant={ id:uid(), type:selectedType, variety:variety, geom:geom, note:note,areaRai:area?+area:null,treeCount:trees?+trees:null,bloomStatus:bloom,pesticideUse:pesticide, ownerPhone:session.phone, ownerName:profile.name, createdAt:Date.now() };
-    try{const saved=await api('/api/plants',{method:'POST',body:JSON.stringify({plant_type:selectedType,variety:variety,geometry:geom,area_rai:area||null,tree_count:trees||null,bloom_status:bloom,pesticide_use:pesticide,observed_at:Date.now(),note:note})});newPlant.backendId=saved.id;}catch(e){showToast('alert','บันทึกไม่สำเร็จ',e.message);return;}
+    const newPlant={ id:uid(), type:selectedType, variety:variety, geom:geom, note:note,areaRai:isPlantArea?calculatedArea:null,treeCount:treeCount,bloomStatus:bloom,pesticideUse:pesticide, ownerPhone:session.phone, ownerName:profile.name, createdAt:Date.now() };
+    try{const saved=await api('/api/plants',{method:'POST',body:JSON.stringify({plant_type:selectedType,variety:variety,geometry:geom,tree_count:treeCount,bloom_status:bloom,pesticide_use:pesticide,observed_at:Date.now(),note:note})});newPlant.backendId=saved.id;newPlant.areaRai=saved.area_rai;newPlant.treeCount=saved.tree_count;}catch(e){showToast('alert','บันทึกไม่สำเร็จ',e.message);return;}
     plants.push(newPlant);
     closeModal();
     renderAll(); renderAllPanels(); showToast('plant','บันทึกแหล่งอาหารแล้ว','เพิ่ม '+PLANT_CATALOG[selectedType].label+' เรียบร้อย');
@@ -1454,31 +1462,61 @@ function openFeedback(){
   });
 }
 
-/* ================= SEARCH (place + hive/zone names) ================= */
-let searchTimeout=null, geoSearchSeq=0;
+/* ================= SEARCH (ECO Bee data + Google Places) ================= */
+let searchTimeout=null, placeSearchSeq=0,placeSearchCache=new Map(),temporarySearchMarker=null;
+let placeSearchSession=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2);
 const searchInput=document.getElementById('search-input'), searchResults=document.getElementById('search-results');
-searchInput.addEventListener('input', function(){ clearTimeout(searchTimeout); const q=this.value.trim(),seq=++geoSearchSeq; if(q.length<2){ searchResults.classList.add('hidden'); return; } localMatches(q); searchTimeout=setTimeout(function(){ runGeoSearch(q,seq); }, 500); });
-function localMatches(q){
-  const ql=q.toLowerCase();
-  const local = searchIndex.filter(function(it){return it.key.indexOf(ql)!==-1;}).slice(0,6);
-  if(local.length){ searchResults.innerHTML = local.map(function(it,idx){ return '<button data-local="'+idx+'" class="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-amber-50 border-b border-gray-50 flex items-center gap-2.5"><i class="fa-solid '+(it.type==='รังผึ้ง'?'fa-location-dot text-amber-400':(it.type==='จุดเสี่ยง'?'fa-triangle-exclamation text-rose-400':'fa-shield text-emerald-400'))+'"></i><span class="flex-1"><span class="block font-semibold">'+escapeHtml(it.label)+'</span><span class="block text-[11px] text-gray-400">'+it.type+'</span></span></button>'; }).join(''); searchResults.classList.remove('hidden');
-    searchResults.querySelectorAll('[data-local]').forEach(function(b){ b.addEventListener('click', function(){ const it=local[+b.dataset.local]; map.flyTo([it.lat,it.lng],16); searchResults.classList.add('hidden'); searchInput.value=it.label; searchInput.blur(); }); });
-  }
+searchInput.addEventListener('input', function(){ clearTimeout(searchTimeout); const q=this.value.trim(),seq=++placeSearchSeq,gps=parseGpsCoordinates(q); if(q.length<2){ searchResults.classList.add('hidden'); return; } renderSearchResults(q,[],!gps&&q.length>=3); if(!gps&&q.length>=3)searchTimeout=setTimeout(function(){ runPlaceSearch(q,seq); },350); });
+searchInput.addEventListener('keydown',function(e){const gps=parseGpsCoordinates(this.value);if(e.key==='Enter'&&gps){e.preventDefault();showGpsLocation(gps);}});
+function parseGpsCoordinates(value){
+  const match=String(value||'').trim().match(/^(-?\d{1,2}(?:\.\d+)?)\s*(?:,|\s)\s*(-?\d{1,3}(?:\.\d+)?)$/);
+  if(!match)return null;
+  const lat=Number(match[1]),lng=Number(match[2]);
+  return Number.isFinite(lat)&&Number.isFinite(lng)&&lat>=-90&&lat<=90&&lng>=-180&&lng<=180?{lat:lat,lng:lng}:null;
 }
-async function runGeoSearch(q,seq){
+function showTemporarySearchMarker(lat,lng,label){
+  if(temporarySearchMarker)map.removeLayer(temporarySearchMarker);
+  const icon=L.divIcon({className:'',html:'<div class="map-pin-search" aria-label="ตำแหน่งที่ค้นหา"></div>',iconSize:[30,30],iconAnchor:[15,15]});
+  temporarySearchMarker=L.marker([lat,lng],{pane:'searchMarkerPane',icon:icon,zIndexOffset:500}).addTo(map);
+  temporarySearchMarker.bindPopup('<div class="popup-title">📍 '+escapeHtml(label||'ตำแหน่งที่ค้นหา')+'</div><div class="popup-row"><span>ละติจูด</span><b>'+lat.toFixed(6)+'</b></div><div class="popup-row"><span>ลองจิจูด</span><b>'+lng.toFixed(6)+'</b></div><p style="font-size:10px;color:#64748b;margin-top:7px">หมุดสีน้ำเงินนี้เป็นหมุดชั่วคราวและไม่ได้บันทึกลงระบบ</p>');
+}
+function showGpsLocation(gps){
+  const label=gps.lat.toFixed(6)+', '+gps.lng.toFixed(6);
+  showTemporarySearchMarker(gps.lat,gps.lng,'พิกัด GPS');map.flyTo([gps.lat,gps.lng],17);finishSearch(label);
+  showToast('info','พบตำแหน่งจากพิกัด GPS','แสดงด้วยหมุดสีน้ำเงินชั่วคราว');
+}
+function searchLocal(q){
+  const ql=q.toLowerCase();
+  return searchIndex.filter(function(it){return it.key.indexOf(ql)!==-1;}).slice(0,5);
+}
+function localSearchIcon(type){return type==='รังผึ้ง'?'<svg class="w-5 h-5 text-amber-500" fill="currentColor"><use href="#icon-bee"/></svg>':type==='พืชอาหาร'?'<i class="fa-solid fa-seedling text-emerald-500"></i>':type==='สวน'?'<i class="fa-solid fa-draw-polygon text-blue-500"></i>':type==='จุดเสี่ยง'?'<i class="fa-solid fa-triangle-exclamation text-rose-500"></i>':'<i class="fa-solid fa-shield text-emerald-500"></i>';}
+function renderSearchResults(q,places,loading,error){
+  const local=searchLocal(q),gps=parseGpsCoordinates(q);
+  let html=gps?'<button data-gps class="w-full text-left px-4 py-3 text-sm text-blue-700 hover:bg-blue-50 border-b border-blue-50 flex items-center gap-2.5"><i class="fa-solid fa-location-crosshairs text-blue-500"></i><span class="flex-1"><span class="block font-semibold">ไปยังพิกัด '+gps.lat.toFixed(6)+', '+gps.lng.toFixed(6)+'</span><span class="block text-[11px] text-blue-400">แสดงหมุดสีน้ำเงินชั่วคราวบนแผนที่</span></span></button>':'';
+  html+=local.map(function(it,idx){return '<button data-local="'+idx+'" class="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-amber-50 border-b border-gray-50 flex items-center gap-2.5">'+localSearchIcon(it.type)+'<span class="flex-1"><span class="block font-semibold">'+escapeHtml(it.label)+'</span><span class="block text-[11px] text-gray-400">'+it.type+' · ข้อมูลของ ECO Bee</span></span></button>';}).join('');
+  html+=places.map(function(item,idx){return '<button data-place="'+idx+'" class="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-amber-50 border-b border-gray-50 flex items-start gap-2.5"><i class="fa-solid fa-location-dot text-red-400 mt-0.5"></i><span class="flex-1 min-w-0"><span class="block font-semibold">'+escapeHtml(item.label)+'</span><span class="block text-[11px] text-gray-400 truncate">'+escapeHtml(item.address||'ประเทศไทย')+'</span></span></button>';}).join('');
+  if(loading)html+='<div class="px-4 py-3 text-xs text-gray-500 flex items-center gap-2"><span class="w-4 h-4 rounded-full border-2 border-amber-400 border-t-transparent animate-spin"></span>กำลังค้นหาสถานที่ใกล้บริเวณแผนที่…</div>';
+  else if(error)html+='<div class="px-4 py-3 text-xs text-gray-400"><i class="fa-solid fa-circle-info mr-1"></i>'+escapeHtml(error)+(local.length?' แต่ยังเลือกข้อมูล ECO Bee ด้านบนได้':'')+'</div>';
+  else if(places.length)html+='<div class="px-4 py-2 text-[10px] text-gray-400 bg-gray-50 text-right">ผลการค้นหาสถานที่โดย Google</div>';
+  else if(!local.length&&!gps)html+='<div class="px-4 py-3 text-xs text-gray-400">ไม่พบข้อมูลที่ตรงกับ “'+escapeHtml(q)+'”<br><span class="text-[10px]">ค้นหาพิกัดได้ เช่น 13.7563, 100.5018</span></div>';
+  searchResults.innerHTML=html;searchResults.classList.remove('hidden');
+  const gpsButton=searchResults.querySelector('[data-gps]');if(gpsButton)gpsButton.addEventListener('click',function(){showGpsLocation(gps);});
+  searchResults.querySelectorAll('[data-local]').forEach(function(b){b.addEventListener('click',function(){const it=local[+b.dataset.local];showTemporarySearchMarker(it.lat,it.lng,it.label);map.flyTo([it.lat,it.lng],16);finishSearch(it.label);});});
+  searchResults.querySelectorAll('[data-place]').forEach(function(b){b.addEventListener('click',async function(){await choosePlace(places[+b.dataset.place],b);});});
+}
+function finishSearch(label){searchResults.classList.add('hidden');searchInput.value=label;searchInput.blur();}
+async function runPlaceSearch(q,seq){
   try{
-    const url='https://nominatim.openstreetmap.org/search?format=json&limit=4&countrycodes=th&q='+encodeURIComponent(q);
-    const res=await fetch(url); const data=await res.json();
-    if(seq!==geoSearchSeq || searchInput.value.trim()!==q) return;
-    const ql=q.toLowerCase();
-    const local = searchIndex.filter(function(it){return it.key.indexOf(ql)!==-1;}).slice(0,5);
-    let html = local.map(function(it,idx){ return '<button data-local="'+idx+'" class="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-amber-50 border-b border-gray-50 flex items-center gap-2.5"><i class="fa-solid '+(it.type==='รังผึ้ง'?'fa-location-dot text-amber-400':(it.type==='จุดเสี่ยง'?'fa-triangle-exclamation text-rose-400':'fa-shield text-emerald-400'))+'"></i><span class="flex-1"><span class="block font-semibold">'+escapeHtml(it.label)+'</span><span class="block text-[11px] text-gray-400">'+it.type+'</span></span></button>'; }).join('');
-    html += data.map(function(item,idx){ return '<button data-geo="'+idx+'" class="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-amber-50 border-b border-gray-50 last:border-0 flex items-start gap-2.5"><i class="fa-solid fa-location-dot text-gray-300 mt-0.5"></i><span>'+escapeHtml(item.display_name)+'</span></button>'; }).join('');
-    if(!html) html='<div class="p-3 text-xs text-gray-400">ไม่พบผลลัพธ์</div>';
-    searchResults.innerHTML=html; searchResults.classList.remove('hidden');
-    searchResults.querySelectorAll('[data-local]').forEach(function(b){ b.addEventListener('click', function(){ const it=local[+b.dataset.local]; map.flyTo([it.lat,it.lng],16); searchResults.classList.add('hidden'); searchInput.value=it.label; searchInput.blur(); }); });
-    searchResults.querySelectorAll('[data-geo]').forEach(function(b){ b.addEventListener('click', function(){ const item=data[+b.dataset.geo]; map.flyTo([+item.lat,+item.lon],15); searchResults.classList.add('hidden'); searchInput.value=item.display_name.split(',')[0]; searchInput.blur(); }); });
-  }catch(e){ searchResults.innerHTML='<div class="p-3 text-xs text-gray-400">ไม่สามารถค้นหาได้ในขณะนี้</div>'; searchResults.classList.remove('hidden'); }
+    const center=map.getCenter(),cacheKey=q.toLowerCase()+'|'+center.lat.toFixed(1)+'|'+center.lng.toFixed(1),cached=placeSearchCache.get(cacheKey);
+    let places;if(cached&&Date.now()-cached.time<300000)places=cached.results;else{const data=await api('/api/places/autocomplete?q='+encodeURIComponent(q)+'&lat='+center.lat+'&lng='+center.lng+'&session_token='+encodeURIComponent(placeSearchSession));places=data.results||[];placeSearchCache.set(cacheKey,{time:Date.now(),results:places});}
+    if(seq!==placeSearchSeq||searchInput.value.trim()!==q)return;renderSearchResults(q,places,false);
+  }catch(e){if(seq!==placeSearchSeq||searchInput.value.trim()!==q)return;renderSearchResults(q,[],false,e.code==='places_not_configured'?'ค้นหาได้เฉพาะข้อมูลในระบบ เนื่องจากยังไม่ได้ตั้งค่า Google Places':'ค้นหาสถานที่ภายนอกไม่สำเร็จ กรุณาลองใหม่');}
+}
+async function choosePlace(item,button){
+  const busy=beginAction(button,'place-details','กำลังเปิด…');if(!busy)return;
+  try{const place=await api('/api/places/details?place_id='+encodeURIComponent(item.place_id)+'&session_token='+encodeURIComponent(placeSearchSession));showTemporarySearchMarker(place.lat,place.lng,place.label||item.label);map.flyTo([place.lat,place.lng],16);finishSearch(place.label||item.label);placeSearchSession=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now());}
+  catch(e){showToast('alert','เปิดสถานที่ไม่สำเร็จ',e.message);}
+  finally{endAction(button,'place-details',busy);}
 }
 document.addEventListener('click', function(e){ if(!e.target.closest('#search-input')&&!e.target.closest('#search-results')) searchResults.classList.add('hidden'); });
 
