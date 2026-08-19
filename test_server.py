@@ -47,6 +47,16 @@ class BackendTests(unittest.TestCase):
         self.assertNotIn('id="ra-pass" type="text"',organization)
         self.assertNotIn('id="aa-pass" type="text"',organization)
 
+    def test_map_keeps_bee_markers_above_other_layers_and_uses_plant_icons(self):
+        farmer=(Path(__file__).resolve().parent/"farmer/index.html").read_text()
+        self.assertIn("map.createPane('hiveMarkerPane')",farmer)
+        self.assertIn("style.zIndex=750",farmer)
+        self.assertIn("pane:'hiveMarkerPane',zIndexOffset:1000",farmer)
+        self.assertIn('<use href="#icon-bee"/>',farmer)
+        self.assertIn("map-pin-plant-emoji",farmer)
+        self.assertIn("escapeHtml(plant.icon||'🌿')",farmer)
+        self.assertIn("icon:plantIconFor(p.code,p.thai_name)",farmer)
+
     def test_distance(self):
         self.assertAlmostEqual(server.haversine(13.5282,99.8134,13.5282,99.8134),0)
         self.assertGreater(server.haversine(13.5282,99.8134,13.5382,99.8134),1)
