@@ -59,6 +59,15 @@ window.storage = window.storage || {
   .popup-del-btn { margin-top:8px; width:100%; min-height:38px; border-radius:8px; background:#fee2e2; color:#dc2626; font-size:14px; font-weight:700; border:none; cursor:pointer; }
 
   .map-pin { border-radius:9999px; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 10px rgba(0,0,0,.28); border:3px solid white; width:calc(34px * var(--ui-scale)); height:calc(34px * var(--ui-scale)); }
+  .map-pin-secondary { width:calc(24px * var(--ui-scale)); height:calc(24px * var(--ui-scale)); border-width:2px; box-shadow:0 2px 6px rgba(0,0,0,.2); opacity:.9; }
+  .map-pin.map-pin-secondary i, .map-pin.map-pin-secondary svg { font-size:calc(10px * var(--ui-scale)); width:calc(11px * var(--ui-scale)); height:calc(11px * var(--ui-scale)); }
+  .filter-chip { min-height:42px; display:flex; align-items:center; gap:7px; padding:8px 10px; border:1px solid #e5e7eb; border-radius:12px; color:#4b5563; font-weight:600; cursor:pointer; }
+  .filter-chip:has(input:checked) { border-color:#fbbf24; background:#fffbeb; color:#374151; }
+  .filter-chip input { accent-color:#f59e0b; }
+  .map-cluster { border-radius:999px; color:white; display:flex; flex-direction:column; align-items:center; justify-content:center; font-weight:800; line-height:1.05; border:3px solid rgba(255,255,255,.9); box-shadow:0 5px 14px rgba(15,23,42,.28); background:linear-gradient(135deg,#10b981,#f59e0b); }
+  .map-cluster small { display:block; font-size:9px; margin-top:3px; white-space:nowrap; }
+  .farm-summary { min-width:104px; padding:7px 9px; border-radius:12px; background:rgba(255,255,255,.94); border:2px solid #60a5fa; box-shadow:0 3px 10px rgba(15,23,42,.18); color:#1f2937; text-align:center; font-weight:800; font-size:11px; white-space:nowrap; }
+  .farm-summary small { display:block; margin-top:2px; color:#6b7280; font-size:9px; font-weight:600; }
   .map-pin-amber { background:#f59e0b; } .map-pin-emerald { background:#10b981; } .map-pin-rose { background:#f43f5e; }
   .map-pin i, .map-pin svg { font-size:calc(14px * var(--ui-scale)); width:calc(16px * var(--ui-scale)); height:calc(16px * var(--ui-scale)); }
 
@@ -178,16 +187,30 @@ window.storage = window.storage || {
 
   <!-- TOP BAR -->
   <div class="absolute z-30 top-0 inset-x-0 p-3 flex items-center gap-2" style="padding-top: max(12px, env(safe-area-inset-top));">
-    <button id="menu-btn" class="w-11 h-11 rounded-2xl bg-white shadow-md flex items-center justify-center shrink-0 text-gray-700 relative">
+    <button id="menu-btn" type="button" aria-label="เปิดการแจ้งเตือน" title="การแจ้งเตือน" class="w-11 h-11 rounded-2xl bg-white shadow-md flex items-center justify-center shrink-0 text-gray-700 relative">
       <svg class="w-6 h-6 text-amber-500" fill="currentColor"><use href="#icon-bee"/></svg>
       <span id="alert-dot" class="hidden absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center">0</span>
     </button>
     <div class="relative flex-1">
-      <input id="search-input" type="text" placeholder="ค้นหาพื้นที่ / ชื่อรังผึ้ง / จุดเสี่ยง..." class="w-full h-11 rounded-2xl bg-white shadow-md pl-10 pr-4 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400">
+      <input id="search-input" type="search" autocomplete="off" placeholder="ค้นหาสวน / รังผึ้ง / ชนิดพืช..." class="w-full h-11 rounded-2xl bg-white shadow-md pl-10 pr-4 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400">
       <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
       <div id="search-results" class="hidden absolute top-[52px] inset-x-0 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden max-h-72 overflow-y-auto z-40"></div>
     </div>
-    <button id="layer-toggle" class="w-11 h-11 rounded-2xl bg-white shadow-md flex items-center justify-center shrink-0 text-gray-600"><i class="fa-solid fa-layer-group"></i></button>
+    <button id="layer-toggle" type="button" aria-label="เปลี่ยนรูปแบบแผนที่" title="เปลี่ยนรูปแบบแผนที่" class="w-11 h-11 rounded-2xl bg-white shadow-md flex items-center justify-center shrink-0 text-gray-600"><i class="fa-solid fa-layer-group"></i></button>
+    <button id="filter-toggle" aria-label="ตัวกรองแผนที่" class="w-11 h-11 rounded-2xl bg-white shadow-md flex items-center justify-center shrink-0 text-gray-600 relative"><i class="fa-solid fa-sliders"></i><span id="filter-count" class="hidden absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-amber-500 text-white text-[9px] font-bold items-center justify-center"></span></button>
+  </div>
+
+  <div id="map-filter-panel" class="hidden absolute z-40 top-[64px] right-3 w-[min(330px,calc(100vw-24px))] rounded-2xl bg-white shadow-xl border border-gray-100 p-4" style="margin-top: env(safe-area-inset-top);">
+    <div class="flex items-center justify-between mb-3"><div><p class="font-display font-bold text-gray-800">แสดงข้อมูลบนแผนที่</p><p id="zoom-level-label" class="text-[10px] text-gray-400 mt-0.5">กำลังตรวจระดับการซูม</p></div><button id="filter-close" type="button" aria-label="ปิดตัวกรอง" class="w-9 h-9 rounded-xl bg-gray-50 text-gray-500"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="grid grid-cols-2 gap-2 text-xs">
+      <label class="filter-chip"><input data-map-filter="hives" type="checkbox" checked> <i class="fa-solid fa-house-chimney text-amber-500"></i>รังของฉัน</label>
+      <label class="filter-chip"><input data-map-filter="plants" type="checkbox" checked> <i class="fa-solid fa-seedling text-emerald-500"></i>พืชอาหาร</label>
+      <label class="filter-chip"><input data-map-filter="boundaries" type="checkbox" checked> <i class="fa-solid fa-draw-polygon text-blue-500"></i>ขอบเขตสวน</label>
+      <label class="filter-chip"><input data-map-filter="risks" type="checkbox" checked> <i class="fa-solid fa-triangle-exclamation text-rose-500"></i>พื้นที่เสี่ยง</label>
+    </div>
+    <label class="block text-[11px] font-semibold text-gray-500 mt-3 mb-1">ช่วงออกดอก</label>
+    <select id="bloom-filter" class="w-full h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700"><option value="all">ทุกช่วง</option><option value="now">ออกดอกเดือนนี้</option><option value="high">กำลังออกดอกมาก</option><option value="none">ยังไม่ออกดอก</option></select>
+    <button id="filter-reset" class="w-full h-10 mt-3 rounded-xl bg-gray-50 text-xs font-semibold text-gray-500">แสดงทั้งหมด</button>
   </div>
 
   <!-- LIVE STATUS BADGE (proves the page is not frozen) -->
@@ -197,10 +220,10 @@ window.storage = window.storage || {
 
   <!-- ZOOM + LOCATE -->
   <div class="absolute z-20 left-3 top-[76px] flex flex-col rounded-2xl overflow-hidden shadow-md bg-white" style="margin-top: env(safe-area-inset-top);">
-    <button id="zoom-in" class="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-50 border-b border-gray-100"><i class="fa-solid fa-plus"></i></button>
-    <button id="zoom-out" class="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-50"><i class="fa-solid fa-minus"></i></button>
+    <button id="zoom-in" type="button" aria-label="ขยายแผนที่" class="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-50 border-b border-gray-100"><i class="fa-solid fa-plus"></i></button>
+    <button id="zoom-out" type="button" aria-label="ย่อแผนที่" class="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-50"><i class="fa-solid fa-minus"></i></button>
   </div>
-  <button id="locate-btn" class="absolute z-20 left-3 top-[164px] w-10 h-10 rounded-2xl shadow-md bg-white flex items-center justify-center text-gray-600" style="margin-top: env(safe-area-inset-top);"><i class="fa-solid fa-location-crosshairs"></i></button>
+  <button id="locate-btn" type="button" aria-label="ไปยังตำแหน่งของฉัน" title="ตำแหน่งของฉัน" class="absolute z-20 left-3 top-[164px] w-10 h-10 rounded-2xl shadow-md bg-white flex items-center justify-center text-gray-600" style="margin-top: env(safe-area-inset-top);"><i class="fa-solid fa-location-crosshairs"></i></button>
 
   <!-- MODE BANNER -->
   <div id="mode-banner" class="hidden absolute z-30 top-[76px] inset-x-3 bg-gray-800 text-white rounded-2xl px-4 py-3 shadow-lg" style="margin-top: env(safe-area-inset-top);">
@@ -214,9 +237,9 @@ window.storage = window.storage || {
 
   <!-- BOTTOM SHEET -->
   <div id="sheet" class="sheet-collapsed absolute z-20 inset-x-0 bottom-0 bg-white rounded-t-3xl shadow-[0_-8px_30px_rgba(0,0,0,0.10)]" style="max-height:82vh;">
-    <button id="sheet-handle" type="button" aria-label="ย่อแถบเมนู" aria-expanded="false" class="relative w-full h-9 flex items-center justify-center">
+    <button id="sheet-handle" type="button" aria-label="ขยายแถบเมนู" aria-expanded="false" class="relative w-full h-9 flex items-center justify-center">
       <span class="w-10 h-1.5 rounded-full bg-gray-200"></span>
-      <span class="absolute right-4 text-[11px] font-semibold text-gray-400"><i class="fa-solid fa-chevron-down mr-1"></i>ย่อ</span>
+      <span id="sheet-handle-label" class="absolute right-4 text-[11px] font-semibold text-gray-400"><i class="fa-solid fa-chevron-up mr-1"></i>ขยาย</span>
     </button>
     <div class="flex border-b border-gray-100 px-1 overflow-x-auto no-scrollbar" id="sheet-tabbar"></div>
     <div id="sheet-scroll" class="overflow-y-auto px-4 pb-8" style="max-height:calc(82vh - 104px);overscroll-behavior:contain;">
@@ -485,6 +508,8 @@ function initMap(center){
     navigator.geolocation.getCurrentPosition(function(p){ map.flyTo([p.coords.latitude,p.coords.longitude],16); }, function(){ showToast('info','ระบุตำแหน่งไม่ได้','กรุณาอนุญาตการเข้าถึงตำแหน่ง'); });
   });
   map.on('click', onMapClick);
+  map.on('zoomend',function(){renderAll();});
+  map.on('moveend',function(){renderAll();clearTimeout(viewportLoadTimer);viewportLoadTimer=setTimeout(loadVisibleMapData,350);});
   map.on('contextmenu', function(){ if((mode==='drawPlantArea'||mode==='drawFarmArea'||mode==='drawSafe'||mode==='drawDanger')&&drawVertices.length){ drawVertices.pop(); updateDrawPreview(); } });
 }
 
@@ -532,21 +557,30 @@ function confirmDelete(title, msg, onConfirm){
 /* ================= DATA STATE ================= */
 let myHives=[], plants=[], zones=[], farmBoundaries=[];
 let hivesVisible=true;
-let hiveRefs=[], plantRefs=[], zoneRefs=[], boundaryRefs=[];
-let searchIndex = {};
+let hiveRefs=[], plantRefs=[], zoneRefs=[], boundaryRefs=[], clusterRefs=[];
+let searchIndex = [], focusedHiveId=null;
+const mapFilters={hives:true,plants:true,boundaries:true,risks:true,bloom:'all'};
+let viewportLoadTimer=null,viewportRequest=0;
+
+function applyMapData(data){
+  myHives=data.hives.filter(function(h){return h.mine;}).map(function(h){return {id:h.id,backendId:h.id,name:h.name,species:h.species,lat:h.lat,lng:h.lng,radiusKm:h.radius_km,note:h.note,ownerPhone:h.owner_phone,createdAt:h.created_at};});
+  plants=data.plants.map(function(p){return {id:p.id,backendId:p.id,type:p.plant_type,variety:p.variety,geom:p.geometry,note:p.note||'',areaRai:p.area_rai,treeCount:p.tree_count,bloomStatus:p.bloom_status,pesticideUse:p.pesticide_use,observedAt:p.observed_at,ownerPhone:p.owner_phone||'org',ownerName:p.owner_name||p.admin_name||'หน่วยงาน',createdAt:p.created_at};});
+  zones=data.risk_zones.map(function(z){return {id:z.id,backendId:z.id,status:z.status,name:z.name,geom:z.geometry,note:z.note||'',ownerPhone:z.owner_phone||'org',ownerName:z.owner_name||z.admin_name||'หน่วยงาน',createdAt:z.created_at};});
+  farmBoundaries=(data.farm_boundaries||[]).map(function(b){return {id:b.id,backendId:b.id,name:b.name,geom:b.geometry,targetSpecies:b.target_species,minSpacingKm:b.min_spacing_km,createdAt:b.created_at};});
+}
+async function loadVisibleMapData(){
+  if(!map||!session)return;const seq=++viewportRequest,b=map.getBounds(),bounds=[b.getSouth(),b.getWest(),b.getNorth(),b.getEast()].join(',');
+  try{const data=await api('/api/map-data?bounds='+encodeURIComponent(bounds));if(seq!==viewportRequest)return;applyMapData(data);renderAll();if(activeTab==='mine')renderMinePanel();}catch(e){if(seq===viewportRequest)showToast('alert','อัปเดตแผนที่ไม่สำเร็จ',e.message);}
+}
 
 async function enterApp(){
   document.getElementById('auth-screen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   await refreshCatalog();
   profile = profile || await sget('profile_'+session.phone, false) || { name:'เกษตรกร', farm:'ฟาร์มของฉัน' };
-  const data=await api('/api/map-data');
-  myHives=data.hives.filter(function(h){return h.mine;}).map(function(h){return {id:h.id,backendId:h.id,name:h.name,species:h.species,lat:h.lat,lng:h.lng,radiusKm:h.radius_km,note:h.note,ownerPhone:h.owner_phone,createdAt:h.created_at};});
-  plants=data.plants.map(function(p){return {id:p.id,backendId:p.id,type:p.plant_type,variety:p.variety,geom:p.geometry,note:p.note||'',areaRai:p.area_rai,treeCount:p.tree_count,bloomStatus:p.bloom_status,pesticideUse:p.pesticide_use,observedAt:p.observed_at,ownerPhone:p.owner_phone||'org',ownerName:p.owner_name||p.admin_name||'หน่วยงาน',createdAt:p.created_at};});
-  zones=data.risk_zones.map(function(z){return {id:z.id,backendId:z.id,status:z.status,name:z.name,geom:z.geometry,note:z.note||'',ownerPhone:z.owner_phone||'org',ownerName:z.owner_name||z.admin_name||'หน่วยงาน',createdAt:z.created_at};});
-  farmBoundaries=(data.farm_boundaries||[]).map(function(b){return {id:b.id,backendId:b.id,name:b.name,geom:b.geometry,targetSpecies:b.target_species,minSpacingKm:b.min_spacing_km,createdAt:b.created_at};});
   const center = DEFAULT_CENTER;
   if(!map){ initMap(center); } else { map.setView(center, 14); }
+  await loadVisibleMapData();
   renderTabbar();
   renderAll();
   setActiveTab('add');
@@ -557,6 +591,17 @@ async function enterApp(){
 
 /* ================= RENDER LAYERS (with delete buttons in popups) ================= */
 function clearRefs(a){ a.forEach(function(l){ map.removeLayer(l); }); a.length=0; }
+function pointVisible(lat,lng){return !map||map.getBounds().pad(.08).contains([lat,lng]);}
+function geometryPoint(geom){return geom.type==='point'?geom.coords:centroid(geom.coords);}
+function plantMatchesFilter(p){
+  if(mapFilters.bloom==='all')return true;
+  if(mapFilters.bloom==='high')return p.bloomStatus==='high';
+  if(mapFilters.bloom==='none')return !p.bloomStatus||p.bloomStatus==='none';
+  const info=PLANT_CATALOG[p.type],month=new Date().getMonth()+1;
+  return mapFilters.bloom==='now'&&info&&Array.isArray(info.months)&&info.months.indexOf(month)!==-1;
+}
+function mapDisplayMode(){const z=map?map.getZoom():14;return z<=12?'cluster':(z<=15?'garden':'detail');}
+function updateZoomLabel(){const el=document.getElementById('zoom-level-label');if(!el||!map)return;const mode=mapDisplayMode();el.textContent=mode==='cluster'?'ซูมออก · แสดงข้อมูลเป็นกลุ่ม':(mode==='garden'?'ซูมระดับกลาง · สรุปข้อมูลรายสวน':'ซูมเข้า · แสดงแต่ละรายการ');}
 function forwardLayerClickToActiveMode(e, layer){
   if(!mode) return false;
   if(e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent);
@@ -573,7 +618,8 @@ function armModeFromBoundary(action){
 }
 function renderHives(){
   clearRefs(hiveRefs); if(!hivesVisible) return;
-  myHives.forEach(function(h){
+  if(mapDisplayMode()!=='detail'||!mapFilters.hives)return;
+  myHives.filter(function(h){return !focusedHiveId||h.id===focusedHiveId;}).forEach(function(h){
     const spec = SPECIES_DB[h.species]||SPECIES_DB.meliponini;
     const radius = h.radiusKm||spec.radiusKm;
     const icon = L.divIcon({ className:'', html:'<div class="map-pin map-pin-amber"><svg viewBox="0 0 24 24" fill="white"><use href="#icon-hive"/></svg></div>', iconSize:[34,34], iconAnchor:[17,17] });
@@ -592,13 +638,15 @@ function renderHives(){
 }
 function renderPlants(){
   clearRefs(plantRefs);
-  plants.forEach(function(p){
+  if(mapDisplayMode()!=='detail'||!mapFilters.plants)return;
+  plants.filter(plantMatchesFilter).forEach(function(p){
+    const pt=geometryPoint(p.geom);if(!pointVisible(pt[0],pt[1]))return;
     const plant = PLANT_CATALOG[p.type]||{label:p.type,icon:'🌿'};
     const name = plant.label + (p.variety?(' · พันธุ์'+escapeHtml(p.variety)):'');
     const canDelete = p.ownerPhone === session.phone;
     const html='<div class="popup-title">'+plant.icon+' '+escapeHtml(name)+'</div>'+(p.note?'<div class="popup-row"><span>บันทึก</span><b>'+escapeHtml(p.note)+'</b></div>':'')+'<div class="popup-row"><span>ผู้บันทึก</span><b>'+escapeHtml(p.ownerName||'ไม่ระบุ')+'</b></div>'+(canDelete?'<button data-delplant class="popup-del-btn"><i class="fa-solid fa-trash-can mr-1"></i>ลบข้อมูลนี้</button>':'');
     if(p.geom.type==='point'){
-      const icon=L.divIcon({className:'',html:'<div class="map-pin map-pin-emerald"><i class="fa-solid fa-seedling" style="color:white"></i></div>',iconSize:[34,34],iconAnchor:[17,17]});
+      const icon=L.divIcon({className:'',html:'<div class="map-pin map-pin-emerald map-pin-secondary"><i class="fa-solid fa-seedling" style="color:white"></i></div>',iconSize:[24,24],iconAnchor:[12,12]});
       const m=L.marker(p.geom.coords,{icon:icon}).addTo(map); m.bindPopup(html);
       m.on('click',function(e){forwardLayerClickToActiveMode(e,m);});
       if(canDelete) m.on('popupopen', function(e){ const el=e.popup.getElement().querySelector('[data-delplant]'); if(el) el.addEventListener('click', function(){ deletePlant(p.id); }); });
@@ -613,6 +661,7 @@ function renderPlants(){
 }
 function renderZones(){
   clearRefs(zoneRefs);
+  if(!mapFilters.risks||mapDisplayMode()==='cluster')return;
   zones.forEach(function(z){
     const dz = z.status==='danger';
     const canDelete = z.ownerPhone === session.phone;
@@ -625,9 +674,12 @@ function renderZones(){
 }
 function renderFarmBoundaries(){
   clearRefs(boundaryRefs);
+  if(mapDisplayMode()==='cluster')return;
+  if(!mapFilters.boundaries&&mapDisplayMode()!=='garden')return;
   farmBoundaries.forEach(function(b){
     const estimate=boundaryEstimate(b);
-    const poly=L.polygon(b.geom.coords,{color:'#2563eb',weight:3,dashArray:'8 6',fillColor:'#3b82f6',fillOpacity:.08}).addTo(map);
+    const gardenMode=mapDisplayMode()==='garden',hasPlants=estimate.plantTypes>0&&mapFilters.plants;
+    const poly=L.polygon(b.geom.coords,{color:'#2563eb',weight:gardenMode?3:2,dashArray:'8 6',fillColor:hasPlants?'#10b981':'#3b82f6',fillOpacity:gardenMode?(hasPlants?.20:.10):.06}).addTo(map);
     poly.bindPopup('<div class="popup-title">🗺️ '+escapeHtml(b.name)+' <span style="font-size:10px;color:#2563eb">🔒 ส่วนตัว</span></div><div class="popup-row"><span>พื้นที่โดยประมาณ</span><b>'+estimate.areaRai.toFixed(1)+' ไร่</b></div><div class="popup-row"><span>จำนวนรังที่รองรับ</span><b>รอข้อมูลพืชอาหาร</b></div><div class="popup-row"><span>สถานะ</span><b>'+escapeHtml(estimate.capacityReason)+'</b></div><div class="popup-row"><span>วางแล้ว</span><b>'+estimate.existing+' รัง</b></div><div class="popup-row"><span>พืช/เดือนอาหาร</span><b>'+estimate.plantTypes+' ชนิด · '+estimate.foodMonths+'/12 เดือน</b></div><div class="popup-row"><span>พื้นที่เสี่ยงที่ทับซ้อน</span><b>'+estimate.dangerCount+'</b></div><div class="grid grid-cols-2 gap-2 mt-3"><button data-add-boundary-plant class="h-9 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-semibold">+ เพิ่มพืช</button><button data-add-boundary-hive class="h-9 rounded-lg bg-amber-50 text-amber-700 text-xs font-semibold">+ เพิ่มรัง</button></div><p class="text-[9px] text-gray-400 mt-2">เลือกประเภทแล้วแตะตำแหน่งจริงภายในพื้นที่ได้ แม้มีข้อมูลเดิมซ้อนอยู่</p><button data-delboundary class="popup-del-btn"><i class="fa-solid fa-trash-can mr-1"></i>ลบขอบเขตนี้</button>');
     poly.on('click',function(e){forwardLayerClickToActiveMode(e,poly);});
     poly.on('popupopen',function(e){
@@ -637,14 +689,25 @@ function renderFarmBoundaries(){
       const addHive=root.querySelector('[data-add-boundary-hive]');if(addHive)addHive.addEventListener('click',function(){armModeFromBoundary('hive');});
     });
     boundaryRefs.push(poly);
+    if(gardenMode){const c=centroid(b.geom.coords),label=L.marker(c,{icon:L.divIcon({className:'',html:'<div class="farm-summary">'+escapeHtml(b.name)+'<small>พืช '+estimate.plantCount+' จุด · รัง '+estimate.existing+'</small></div>',iconSize:[110,46],iconAnchor:[55,23]})}).addTo(map);label.on('click',function(){map.flyTo(c,17);});boundaryRefs.push(label);}
   });
 }
-function renderAll(){ renderHives(); renderPlants(); renderZones(); renderFarmBoundaries(); buildSearchIndex(); }
+function renderClusters(){
+  clearRefs(clusterRefs);if(mapDisplayMode()!=='cluster')return;
+  const z=map.getZoom(),step=z<=9?4:(z<=11?1.2:.45),groups={};
+  function add(lat,lng,type){if(!pointVisible(lat,lng))return;const key=Math.floor(lat/step)+'|'+Math.floor(lng/step);if(!groups[key])groups[key]={lat:0,lng:0,n:0,hives:0,plants:0};const g=groups[key];g.lat+=lat;g.lng+=lng;g.n++;g[type]++;}
+  if(mapFilters.hives)myHives.filter(function(h){return !focusedHiveId||h.id===focusedHiveId;}).forEach(function(h){add(h.lat,h.lng,'hives');});
+  if(mapFilters.plants)plants.filter(plantMatchesFilter).forEach(function(p){const pt=geometryPoint(p.geom);add(pt[0],pt[1],'plants');});
+  Object.keys(groups).forEach(function(k){const g=groups[k],lat=g.lat/g.n,lng=g.lng/g.n,size=Math.max(52,Math.min(76,46+Math.sqrt(g.n)*5)),icon=L.divIcon({className:'',html:'<div class="map-cluster" style="width:'+size+'px;height:'+size+'px"><span>'+g.n+'</span><small>พืช '+g.plants+' · รัง '+g.hives+'</small></div>',iconSize:[size,size],iconAnchor:[size/2,size/2]}),m=L.marker([lat,lng],{icon:icon}).addTo(map);m.on('click',function(){map.flyTo([lat,lng],Math.min(16,map.getZoom()+3));});clusterRefs.push(m);});
+}
+function renderAll(){ renderClusters();renderHives();renderPlants();renderZones();renderFarmBoundaries();buildSearchIndex();updateZoomLabel(); }
 
 function buildSearchIndex(){
-  searchIndex = {};
-  myHives.forEach(function(h){ searchIndex[(h.name||'').toLowerCase()] = {lat:h.lat,lng:h.lng,label:h.name,type:'รังผึ้ง'}; });
-  zones.forEach(function(z){ if(z.name){ const c=centroid(z.geom.coords); searchIndex[z.name.toLowerCase()]={lat:c[0],lng:c[1],label:z.name,type: z.status==='danger'?'จุดเสี่ยง':'พื้นที่ปลอดภัย'}; } });
+  searchIndex = [];
+  myHives.forEach(function(h){searchIndex.push({key:(h.name||'').toLowerCase(),lat:h.lat,lng:h.lng,label:h.name,type:'รังผึ้ง'});});
+  farmBoundaries.forEach(function(b){const c=centroid(b.geom.coords);searchIndex.push({key:(b.name||'').toLowerCase(),lat:c[0],lng:c[1],label:b.name,type:'สวน'});});
+  plants.forEach(function(p){const c=geometryPoint(p.geom),info=PLANT_CATALOG[p.type]||{label:p.type};searchIndex.push({key:(info.label+' '+(p.variety||'')).toLowerCase(),lat:c[0],lng:c[1],label:info.label+(p.variety?' · '+p.variety:''),type:'พืชอาหาร'});});
+  zones.forEach(function(z){if(z.name){const c=centroid(z.geom.coords);searchIndex.push({key:z.name.toLowerCase(),lat:c[0],lng:c[1],label:z.name,type:z.status==='danger'?'จุดเสี่ยง':'พื้นที่ปลอดภัย'});}});
 }
 
 /* ================= DELETE ACTIONS ================= */
@@ -653,7 +716,7 @@ async function deleteHive(id){
   confirmDelete('ลบรังผึ้งนี้?', 'การลบไม่สามารถย้อนกลับได้', async function(){
     try{await api('/api/hives/'+encodeURIComponent(h.id),{method:'DELETE'});}catch(e){showToast('alert','ลบไม่สำเร็จ',e.message);return;}
     myHives = myHives.filter(function(x){ return x.id!==id; });
-    renderHives(); buildSearchIndex(); renderAllPanels(); showToast('safe','ลบรังผึ้งแล้ว', h?h.name:'');
+    renderAll(); renderAllPanels(); showToast('safe','ลบรังผึ้งแล้ว', h?h.name:'');
   });
 }
 async function deletePlant(id){
@@ -661,7 +724,7 @@ async function deletePlant(id){
   confirmDelete('ลบข้อมูลพืชนี้?', 'การลบไม่สามารถย้อนกลับได้ ข้อมูลนี้แชร์อยู่กับเกษตรกรท่านอื่นด้วย', async function(){
     try{await api('/api/plants/'+encodeURIComponent(p.id),{method:'DELETE'});}catch(e){showToast('alert','ลบไม่สำเร็จ',e.message);return;}
     plants = plants.filter(function(x){ return x.id!==id; });
-    renderPlants(); renderAllPanels(); showToast('safe','ลบข้อมูลพืชแล้ว','');
+    renderAll(); renderAllPanels(); showToast('safe','ลบข้อมูลพืชแล้ว','');
   });
 }
 async function deleteZone(id){
@@ -669,7 +732,7 @@ async function deleteZone(id){
   confirmDelete('ลบพื้นที่นี้?', 'การลบไม่สามารถย้อนกลับได้ ข้อมูลนี้แชร์อยู่กับเกษตรกรท่านอื่นด้วย', async function(){
     try{await api('/api/risk-zones/'+encodeURIComponent(z.id),{method:'DELETE'});}catch(e){showToast('alert','ลบไม่สำเร็จ',e.message);return;}
     zones = zones.filter(function(x){ return x.id!==id; });
-    renderZones(); buildSearchIndex(); renderAllPanels(); showToast('safe','ลบพื้นที่แล้ว','');
+    renderAll(); renderAllPanels(); showToast('safe','ลบพื้นที่แล้ว','');
   });
 }
 async function deleteFarmBoundary(id){
@@ -677,7 +740,7 @@ async function deleteFarmBoundary(id){
   confirmDelete('ลบขอบเขตพื้นที่นี้?','รังและพืชที่บันทึกไว้จะไม่ถูกลบ',async function(){
     try{await api('/api/farm-boundaries/'+encodeURIComponent(id),{method:'DELETE'});}catch(e){showToast('alert','ลบไม่สำเร็จ',e.message);return;}
     farmBoundaries=farmBoundaries.filter(function(x){return x.id!==id;});
-    renderFarmBoundaries();renderAllPanels();showToast('safe','ลบขอบเขตแล้ว',boundary?boundary.name:'');
+    renderAll();renderAllPanels();showToast('safe','ลบขอบเขตแล้ว',boundary?boundary.name:'');
   });
 }
 
@@ -788,7 +851,7 @@ function openHiveForm(latlng){
     myHives.push(newHive);
     calHiveId=newHive.id;rememberCalendarHive();
     closeModal();
-    renderHives(); buildSearchIndex(); renderAllPanels(); showToast('hive','บันทึกรังผึ้งแล้ว', name+' · '+SPECIES_DB[species].label);
+    renderAll(); renderAllPanels(); showToast('hive','บันทึกรังผึ้งแล้ว', name+' · '+SPECIES_DB[species].label);
     }finally{endAction(button,'save-hive',busy);}
   });
 }
@@ -840,7 +903,7 @@ function openPlantForm(geom){
     try{const saved=await api('/api/plants',{method:'POST',body:JSON.stringify({plant_type:selectedType,variety:variety,geometry:geom,area_rai:area||null,tree_count:trees||null,bloom_status:bloom,pesticide_use:pesticide,observed_at:Date.now(),note:note})});newPlant.backendId=saved.id;}catch(e){showToast('alert','บันทึกไม่สำเร็จ',e.message);return;}
     plants.push(newPlant);
     closeModal();
-    renderPlants(); renderAllPanels(); showToast('plant','บันทึกแหล่งอาหารแล้ว','เพิ่ม '+PLANT_CATALOG[selectedType].label+' เรียบร้อย');
+    renderAll(); renderAllPanels(); showToast('plant','บันทึกแหล่งอาหารแล้ว','เพิ่ม '+PLANT_CATALOG[selectedType].label+' เรียบร้อย');
     }finally{endAction(button,'save-plant',busy);}
   });
 }
@@ -867,7 +930,7 @@ function openZoneForm(coords, status){
     try{const saved=await api('/api/risk-zones',{method:'POST',body:JSON.stringify({name:name,status:status,geometry:newZone.geom,note:note})});newZone.backendId=saved.id;}catch(e){closeModal();showToast('alert','บันทึกไม่สำเร็จ','เซิร์ฟเวอร์ไม่ยอมรับข้อมูลพื้นที่');return;}
     zones.push(newZone);
     closeModal();
-    renderZones(); buildSearchIndex(); renderAllPanels(); showToast('alert','บันทึกพื้นที่เสี่ยงแล้ว','ระบบจะแสดงข้อมูลนี้ให้เกษตรกรท่านอื่นเห็นเมื่อตรวจสอบพื้นที่');
+    renderAll(); renderAllPanels(); showToast('alert','บันทึกพื้นที่เสี่ยงแล้ว','ระบบจะแสดงข้อมูลนี้ให้เกษตรกรท่านอื่นเห็นเมื่อตรวจสอบพื้นที่');
     }finally{endAction(button,'save-zone',busy);}
   });
 }
@@ -901,7 +964,7 @@ function openFarmBoundaryForm(coords){
     try{
     const boundary={id:uid(),name:name,geom:{type:'polygon',coords:coords},targetSpecies:species,minSpacingKm:spacing,createdAt:Date.now()};
     try{const saved=await api('/api/farm-boundaries',{method:'POST',body:JSON.stringify({name:name,geometry:boundary.geom,target_species:species,min_spacing_km:spacing})});boundary.id=saved.id;boundary.backendId=saved.id;boundary.minSpacingKm=saved.min_spacing_km;}catch(e){showToast('alert','บันทึกไม่สำเร็จ',e.message);return;}
-    farmBoundaries.push(boundary);closeModal();renderFarmBoundaries();renderAllPanels();
+    farmBoundaries.push(boundary);closeModal();renderAll();renderAllPanels();
     const estimate=boundaryEstimate(boundary);showToast('safe','บันทึกขอบเขตแล้ว','พื้นที่ประมาณ '+estimate.areaRai.toFixed(1)+' ไร่ · '+estimate.capacityReason);
     }finally{endAction(button,'save-boundary',busy);}
   });
@@ -916,6 +979,9 @@ function setSheet(v){
   sheet.classList.toggle('sheet-expanded',sheetExpanded);
   sheet.classList.toggle('sheet-collapsed',!sheetExpanded);
   sheetHandle.setAttribute('aria-expanded',String(sheetExpanded));
+  sheetHandle.setAttribute('aria-label',sheetExpanded?'ย่อแถบเมนู':'ขยายแถบเมนู');
+  const handleLabel=document.getElementById('sheet-handle-label');
+  if(handleLabel)handleLabel.innerHTML='<i class="fa-solid fa-chevron-'+(sheetExpanded?'down':'up')+' mr-1"></i>'+(sheetExpanded?'ย่อ':'ขยาย');
 }
 sheetHandle.addEventListener('click', function(){ setSheet(!sheetExpanded); });
 let sheetTouchStart=null;
@@ -1193,6 +1259,8 @@ function renderWeatherPanel(fetchNow){
 function renderMinePanel(){
   const p=document.getElementById('sheet-panel-mine');
   const dz = zones.filter(function(z){ return z.status==='danger'; }).length;
+  const hiveOptions='<option value="">เลือกรังที่ต้องการดู</option>'+myHives.map(function(h){return '<option value="'+escapeHtml(h.id)+'" '+(focusedHiveId===h.id?'selected':'')+'>'+escapeHtml(h.name)+'</option>';}).join('');
+  const gardenCards=farmBoundaries.length?farmBoundaries.map(function(b){const e=boundaryEstimate(b);return '<button data-goto-garden="'+b.id+'" class="w-full text-left rounded-xl border border-blue-100 bg-blue-50/50 p-3"><div class="flex items-center gap-2"><i class="fa-solid fa-map text-blue-500"></i><span class="flex-1 min-w-0"><span class="block text-sm font-bold text-gray-700 truncate">'+escapeHtml(b.name)+'</span><span class="block text-[10px] text-gray-500 mt-0.5">'+e.areaRai.toFixed(1)+' ไร่ · พืช '+e.plantCount+' จุด / '+e.plantTypes+' ชนิด · รัง '+e.existing+'</span></span><i class="fa-solid fa-chevron-right text-blue-300"></i></div></button>';}).join(''):'<p class="text-xs text-gray-400">ยังไม่ได้กำหนดขอบเขตพื้นที่</p>';
   let hiveList = myHives.length ? myHives.map(function(h){ const spec=SPECIES_DB[h.species]||SPECIES_DB.meliponini; return '<div class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-gray-100"><span class="w-8 h-8 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center shrink-0"><svg class="w-4 h-4" fill="currentColor"><use href="#icon-hive"/></svg></span><span class="flex-1 min-w-0"><span class="block text-sm font-semibold text-gray-700 truncate">'+escapeHtml(h.name)+'</span><span class="block text-[11px] text-gray-400 truncate">'+escapeHtml(spec.label)+' · '+(h.radiusKm||spec.radiusKm)+' กม.</span></span><button data-move-hive="'+h.id+'" title="บันทึกการย้ายรัง" class="text-sky-500 shrink-0"><i class="fa-solid fa-truck-fast"></i></button><button data-qr="'+h.id+'" class="text-xs font-semibold text-amber-600 shrink-0 flex items-center gap-1"><i class="fa-solid fa-qrcode"></i></button><button data-goto-hive="'+h.id+'" class="text-gray-300 shrink-0 ml-1"><i class="fa-solid fa-location-dot"></i></button><button data-del-hive="'+h.id+'" class="text-rose-400 shrink-0 ml-1"><i class="fa-solid fa-trash-can"></i></button></div>'; }).join('') : '<p class="text-xs text-gray-400">ยังไม่มีรังผึ้ง</p>';
   const boundaryList=farmBoundaries.length?farmBoundaries.map(function(b){const e=boundaryEstimate(b);return '<div class="rounded-xl border border-blue-100 bg-blue-50/50 p-3"><div class="flex items-start gap-2"><i class="fa-solid fa-map text-blue-500 mt-1"></i><div class="flex-1 min-w-0"><p class="text-sm font-semibold text-gray-700 truncate">'+escapeHtml(b.name)+'</p><p class="text-[10px] text-gray-500 mt-0.5">'+e.areaRai.toFixed(1)+' ไร่ · '+escapeHtml(e.capacityReason)+'</p></div><button data-del-boundary="'+b.id+'" class="text-rose-400"><i class="fa-solid fa-trash-can"></i></button></div></div>';}).join(''):'<p class="text-xs text-gray-400">ยังไม่ได้กำหนดขอบเขตพื้นที่</p>';
   p.innerHTML=
@@ -1201,6 +1269,8 @@ function renderMinePanel(){
       '<div class="bg-emerald-50 rounded-xl py-3"><p class="font-display font-bold text-lg text-emerald-600">'+plants.length+'</p><p class="text-[10px] text-gray-500 mt-0.5">แหล่งอาหาร (รวม)</p></div>'+
       '<div class="bg-rose-50 rounded-xl py-3"><p class="font-display font-bold text-lg text-rose-600">'+dz+'</p><p class="text-[10px] text-gray-500 mt-0.5">จุดเสี่ยง (รวม)</p></div>'+
     '</div>'+
+    '<div class="rounded-2xl border border-amber-100 bg-amber-50/60 p-3 mb-4"><h4 class="font-display font-bold text-sm text-gray-800 mb-2">ดูทีละรัง</h4><div class="flex gap-2"><select id="mine-hive-select" class="flex-1 min-w-0 h-11 rounded-xl border border-amber-200 bg-white px-3 text-sm">'+hiveOptions+'</select><button id="mine-hive-focus" class="h-11 px-4 rounded-xl bg-amber-500 text-white text-xs font-bold">ดูบนแผนที่</button></div>'+(focusedHiveId?'<button id="mine-hive-clear" class="w-full mt-2 h-9 rounded-lg bg-white text-xs font-semibold text-gray-500">กลับไปแสดงทุกรัง</button>':'')+'</div>'+
+    '<div class="flex items-center justify-between mb-2"><h4 class="font-display font-bold text-sm text-gray-800">ข้อมูลแยกตามสวน</h4><span class="text-[10px] text-blue-600">แตะเพื่อดูสวน</span></div><div class="space-y-2 mb-4">'+gardenCards+'</div>'+
     '<div class="flex items-center justify-between mb-2"><h4 class="font-display font-bold text-sm text-gray-800">รังผึ้งของฉัน</h4><button id="toggle-hives" class="text-xs font-semibold text-gray-500 flex items-center gap-1"><i class="fa-solid fa-eye"></i>ซ่อน/แสดง</button></div>'+
     '<div class="space-y-2 mb-4">'+hiveList+'</div>'+
     '<div class="flex items-center justify-between mb-2"><h4 class="font-display font-bold text-sm text-gray-800">ขอบเขตพื้นที่ของฉัน</h4><span class="text-[10px] text-blue-600 bg-blue-50 px-2 py-1 rounded-full">ส่วนตัว</span></div><div class="space-y-2 mb-4">'+boundaryList+'</div>'+
@@ -1211,7 +1281,10 @@ function renderMinePanel(){
   p.querySelectorAll('[data-move-hive]').forEach(function(b){ b.addEventListener('click', function(){ openMoveHiveModal(b.dataset.moveHive); }); });
   p.querySelectorAll('[data-del-hive]').forEach(function(b){ b.addEventListener('click', function(){ deleteHive(b.dataset.delHive); }); });
   p.querySelectorAll('[data-del-boundary]').forEach(function(b){ b.addEventListener('click', function(){ deleteFarmBoundary(b.dataset.delBoundary); }); });
-  const tg=document.getElementById('toggle-hives'); if(tg) tg.addEventListener('click', function(){ hivesVisible=!hivesVisible; renderHives(); showToast('info', hivesVisible?'แสดงรังผึ้งแล้ว':'ซ่อนรังผึ้งแล้ว',''); });
+  p.querySelectorAll('[data-goto-garden]').forEach(function(button){button.addEventListener('click',function(){const b=farmBoundaries.find(function(x){return x.id===button.dataset.gotoGarden;});if(b){map.fitBounds(b.geom.coords,{padding:[35,35],maxZoom:16});setSheet(false);}});});
+  const focus=document.getElementById('mine-hive-focus');if(focus)focus.addEventListener('click',function(){const id=document.getElementById('mine-hive-select').value,h=myHives.find(function(x){return x.id===id;});if(!h){showToast('info','เลือกรังก่อน','เลือกรังที่ต้องการดูทีละรัง');return;}focusedHiveId=id;mapFilters.hives=true;hivesVisible=true;renderAll();map.flyTo([h.lat,h.lng],17);setSheet(false);});
+  const clearFocus=document.getElementById('mine-hive-clear');if(clearFocus)clearFocus.addEventListener('click',function(){focusedHiveId=null;renderAll();renderMinePanel();});
+  const tg=document.getElementById('toggle-hives'); if(tg) tg.addEventListener('click', function(){ hivesVisible=!hivesVisible;mapFilters.hives=hivesVisible;document.querySelector('[data-map-filter="hives"]').checked=hivesVisible; renderAll(); showToast('info', hivesVisible?'แสดงรังผึ้งแล้ว':'ซ่อนรังผึ้งแล้ว',''); });
   const fit=document.getElementById('mine-fit'); if(fit) fit.addEventListener('click', function(){ const pts=[]; myHives.forEach(function(h){pts.push([h.lat,h.lng]);}); plants.forEach(function(p){ if(p.geom.type==='point')pts.push(p.geom.coords); else p.geom.coords.forEach(function(c){pts.push(c);}); }); zones.forEach(function(z){ z.geom.coords.forEach(function(c){pts.push(c);}); }); farmBoundaries.forEach(function(b){b.geom.coords.forEach(function(c){pts.push(c);});}); if(pts.length){ map.fitBounds(pts,{padding:[50,50]}); setSheet(false); } });
 }
 
@@ -1226,7 +1299,7 @@ function openMoveHiveModal(hiveId){
     if(!Number.isFinite(lat)||!Number.isFinite(lng)||lat<-90||lat>90||lng<-180||lng>180){showToast('info','พิกัดไม่ถูกต้อง','ตรวจสอบละติจูดและลองจิจูด');return;}
     const button=this,busy=beginAction(button,'move-hive','กำลังบันทึก…');if(!busy)return;
     try{
-    try{await api('/api/movements',{method:'POST',body:JSON.stringify({hive_id:h.id,lat:lat,lng:lng,reason:reason})});h.lat=lat;h.lng=lng;closeModal();renderHives();renderAllPanels();map.flyTo([lat,lng],16);showToast('safe','บันทึกการย้ายรังแล้ว',reason||'อัปเดตตำแหน่งใหม่เรียบร้อย');}catch(e){showToast('alert','บันทึกไม่สำเร็จ',e.message);}
+    try{await api('/api/movements',{method:'POST',body:JSON.stringify({hive_id:h.id,lat:lat,lng:lng,reason:reason})});h.lat=lat;h.lng=lng;closeModal();renderAll();renderAllPanels();map.flyTo([lat,lng],16);showToast('safe','บันทึกการย้ายรังแล้ว',reason||'อัปเดตตำแหน่งใหม่เรียบร้อย');}catch(e){showToast('alert','บันทึกไม่สำเร็จ',e.message);}
     }finally{endAction(button,'move-hive',busy);}
   });
 }
@@ -1305,7 +1378,7 @@ function renderSettingsPanel(){
   document.getElementById('set-editprofile').addEventListener('click', openProfileEditor);
   document.getElementById('set-feedback').addEventListener('click', openFeedback);
   document.getElementById('set-logout').addEventListener('click', logout);
-  p.querySelectorAll('[data-scale]').forEach(function(b){ b.addEventListener('click', async function(){ applyUiScale(parseFloat(b.dataset.scale)); const ok=await sset('uiScale', false, uiScale); renderHives(); renderSettingsPanel(); showToast(ok?'info':'alert', ok?'ปรับขนาดแล้ว':'บันทึกไม่สำเร็จ',''); }); });
+  p.querySelectorAll('[data-scale]').forEach(function(b){ b.addEventListener('click', async function(){ applyUiScale(parseFloat(b.dataset.scale)); const ok=await sset('uiScale', false, uiScale); renderAll(); renderSettingsPanel(); showToast(ok?'info':'alert', ok?'ปรับขนาดแล้ว':'บันทึกไม่สำเร็จ',''); }); });
 }
 function sizeBtn(label,val){ const on=Math.abs(uiScale-val)<0.001; return '<button data-scale="'+val+'" class="flex-1 h-10 rounded-xl border text-xs font-semibold '+(on?'bg-amber-500 text-white border-amber-500':'bg-white text-gray-500 border-gray-200')+'">'+label+'</button>'; }
 
@@ -1364,7 +1437,7 @@ const searchInput=document.getElementById('search-input'), searchResults=documen
 searchInput.addEventListener('input', function(){ clearTimeout(searchTimeout); const q=this.value.trim(),seq=++geoSearchSeq; if(q.length<2){ searchResults.classList.add('hidden'); return; } localMatches(q); searchTimeout=setTimeout(function(){ runGeoSearch(q,seq); }, 500); });
 function localMatches(q){
   const ql=q.toLowerCase();
-  const local = Object.keys(searchIndex).filter(function(k){ return k.indexOf(ql)!==-1; }).map(function(k){ return searchIndex[k]; }).slice(0,4);
+  const local = searchIndex.filter(function(it){return it.key.indexOf(ql)!==-1;}).slice(0,6);
   if(local.length){ searchResults.innerHTML = local.map(function(it,idx){ return '<button data-local="'+idx+'" class="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-amber-50 border-b border-gray-50 flex items-center gap-2.5"><i class="fa-solid '+(it.type==='รังผึ้ง'?'fa-location-dot text-amber-400':(it.type==='จุดเสี่ยง'?'fa-triangle-exclamation text-rose-400':'fa-shield text-emerald-400'))+'"></i><span class="flex-1"><span class="block font-semibold">'+escapeHtml(it.label)+'</span><span class="block text-[11px] text-gray-400">'+it.type+'</span></span></button>'; }).join(''); searchResults.classList.remove('hidden');
     searchResults.querySelectorAll('[data-local]').forEach(function(b){ b.addEventListener('click', function(){ const it=local[+b.dataset.local]; map.flyTo([it.lat,it.lng],16); searchResults.classList.add('hidden'); searchInput.value=it.label; searchInput.blur(); }); });
   }
@@ -1375,7 +1448,7 @@ async function runGeoSearch(q,seq){
     const res=await fetch(url); const data=await res.json();
     if(seq!==geoSearchSeq || searchInput.value.trim()!==q) return;
     const ql=q.toLowerCase();
-    const local = Object.keys(searchIndex).filter(function(k){ return k.indexOf(ql)!==-1; }).map(function(k){ return searchIndex[k]; }).slice(0,3);
+    const local = searchIndex.filter(function(it){return it.key.indexOf(ql)!==-1;}).slice(0,5);
     let html = local.map(function(it,idx){ return '<button data-local="'+idx+'" class="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-amber-50 border-b border-gray-50 flex items-center gap-2.5"><i class="fa-solid '+(it.type==='รังผึ้ง'?'fa-location-dot text-amber-400':(it.type==='จุดเสี่ยง'?'fa-triangle-exclamation text-rose-400':'fa-shield text-emerald-400'))+'"></i><span class="flex-1"><span class="block font-semibold">'+escapeHtml(it.label)+'</span><span class="block text-[11px] text-gray-400">'+it.type+'</span></span></button>'; }).join('');
     html += data.map(function(item,idx){ return '<button data-geo="'+idx+'" class="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-amber-50 border-b border-gray-50 last:border-0 flex items-start gap-2.5"><i class="fa-solid fa-location-dot text-gray-300 mt-0.5"></i><span>'+escapeHtml(item.display_name)+'</span></button>'; }).join('');
     if(!html) html='<div class="p-3 text-xs text-gray-400">ไม่พบผลลัพธ์</div>';
@@ -1385,6 +1458,19 @@ async function runGeoSearch(q,seq){
   }catch(e){ searchResults.innerHTML='<div class="p-3 text-xs text-gray-400">ไม่สามารถค้นหาได้ในขณะนี้</div>'; searchResults.classList.remove('hidden'); }
 }
 document.addEventListener('click', function(e){ if(!e.target.closest('#search-input')&&!e.target.closest('#search-results')) searchResults.classList.add('hidden'); });
+
+/* ================= MAP FILTERS ================= */
+const filterPanel=document.getElementById('map-filter-panel'),filterToggle=document.getElementById('filter-toggle');
+function updateFilterBadge(){
+  const disabled=['hives','plants','boundaries','risks'].filter(function(k){return !mapFilters[k];}).length+(mapFilters.bloom==='all'?0:1),badge=document.getElementById('filter-count');
+  badge.textContent=disabled;badge.classList.toggle('hidden',!disabled);badge.classList.toggle('flex',!!disabled);
+}
+filterToggle.addEventListener('click',function(e){e.stopPropagation();filterPanel.classList.toggle('hidden');updateZoomLabel();});
+document.getElementById('filter-close').addEventListener('click',function(){filterPanel.classList.add('hidden');});
+document.querySelectorAll('[data-map-filter]').forEach(function(input){input.addEventListener('change',function(){mapFilters[this.dataset.mapFilter]=this.checked;if(this.dataset.mapFilter==='hives')hivesVisible=this.checked;focusedHiveId=this.dataset.mapFilter==='hives'&&!this.checked?null:focusedHiveId;updateFilterBadge();renderAll();});});
+document.getElementById('bloom-filter').addEventListener('change',function(){mapFilters.bloom=this.value;updateFilterBadge();renderAll();});
+document.getElementById('filter-reset').addEventListener('click',function(){Object.assign(mapFilters,{hives:true,plants:true,boundaries:true,risks:true,bloom:'all'});hivesVisible=true;focusedHiveId=null;document.querySelectorAll('[data-map-filter]').forEach(function(i){i.checked=true;});document.getElementById('bloom-filter').value='all';updateFilterBadge();renderAll();});
+document.addEventListener('click',function(e){if(!e.target.closest('#map-filter-panel')&&!e.target.closest('#filter-toggle'))filterPanel.classList.add('hidden');});
 
 /* ---- menu button opens alerts tab ---- */
 document.getElementById('menu-btn').addEventListener('click', function(){

@@ -64,6 +64,7 @@ window.storage=window.storage||{
   }
   @media (max-width:767px){
     body{overflow:auto;}
+    input,select,textarea{font-size:16px!important;}
     #root{height:100dvh;min-height:34rem;}
     #org-main{flex-direction:column;overflow:hidden;}
     #org-main>aside{width:100%;height:auto;max-height:9.5rem;flex:none;border-right:0;border-bottom:1px solid #e5e7eb;}
@@ -163,7 +164,7 @@ window.storage=window.storage||{
     <div id="org-map"></div>
     <div class="absolute z-30 top-5 left-5 right-5 flex items-center gap-3">
       <div class="relative flex-1 max-w-xl">
-        <input id="org-search" type="text" placeholder="ค้นหาพื้นที่ / ชื่อรังผึ้ง / จุดเสี่ยง..." class="w-full h-12 rounded-2xl bg-white shadow-md pl-11 pr-4 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400">
+        <input id="org-search" type="search" autocomplete="off" placeholder="ค้นหาพื้นที่ / รังผึ้ง / ชนิดพืช..." class="w-full h-12 rounded-2xl bg-white shadow-md pl-11 pr-4 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400">
         <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
         <div id="org-search-results" class="hidden absolute top-[54px] inset-x-0 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden max-h-72 overflow-y-auto z-40"></div>
       </div>
@@ -277,6 +278,14 @@ function startLiveClock(){
 /* ================= AUTH ================= */
 let orgAcct=null;
 let orgToken=null;
+const orgPendingActions=new Set();
+function beginOrgAction(button,key,label){
+  if(orgPendingActions.has(key))return null;
+  orgPendingActions.add(key);
+  const state={disabled:button.disabled,text:button.textContent};
+  button.disabled=true;button.textContent=label;button.setAttribute('aria-busy','true');
+  return function(){orgPendingActions.delete(key);button.disabled=state.disabled;button.textContent=state.text;button.removeAttribute('aria-busy');};
+}
 async function orgApi(path,options){options=options||{};options.headers=Object.assign({'Content-Type':'application/json',Authorization:'Bearer '+orgToken},options.headers||{});const response=await fetch(path,options),data=await response.json();if(!response.ok){const labels={unauthorized:'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่',not_found:'ไม่พบข้อมูลที่ต้องการ',invalid_plant_code:'รหัสพืชใช้ได้เฉพาะ a-z ตัวเลข _ และ -',invalid_plant_name:'กรุณากรอกชื่อพืช',invalid_number:'ค่าตัวเลขต้องอยู่ในช่วงที่กำหนด',plant_species_in_use:'ลบไม่ได้ เพราะมีแปลงพืชชนิดนี้ใช้งานอยู่',approved_species_cannot_be_deleted:'พืชที่อนุมัติแล้วต้องเปลี่ยนเป็นเก็บถาวรก่อนลบ',weak_password:'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',invalid_admin:'ตรวจสอบอีเมล ชื่อ และรหัสผ่านอย่างน้อย 12 ตัวอักษร',cannot_delete_self:'ไม่สามารถลบบัญชีที่กำลังใช้งาน',last_admin:'ต้องมีผู้ดูแลอย่างน้อยหนึ่งบัญชี',internal_error:'ระบบขัดข้อง กรุณาลองใหม่อีกครั้ง'};const e=new Error(labels[data.error]||data.error||'ไม่สามารถเชื่อมต่อระบบได้');e.code=data.error;e.status=response.status;throw e;}return data;}
 async function orgBoot(){
   startLiveClock();
@@ -286,6 +295,8 @@ async function orgBoot(){
   document.getElementById('org-pass').addEventListener('keydown', function(e){ if(e.key==='Enter') orgDoLogin(); });
 }
 async function orgDoLogin(){
+  const button=document.getElementById('org-login');
+  const done=beginOrgAction(button,'org-login','กำลังเข้าสู่ระบบ…');if(!done)return;
   try {
     const email=document.getElementById('org-email').value.trim().toLowerCase();
     const pass=document.getElementById('org-pass').value;
@@ -298,7 +309,7 @@ async function orgDoLogin(){
     await enterOrg();
   } catch(err) {
     showToast('alert','เข้าสู่ระบบไม่สำเร็จ','เกิดข้อผิดพลาดที่ไม่คาดคิด กรุณาลองใหม่อีกครั้ง');
-  }
+  } finally { done(); }
 }
 async function orgLogout(){try{await orgApi('/api/org/logout',{method:'POST',body:'{}'});}catch(e){}sessionStorage.removeItem('ecobee_org_token');orgToken=null;orgAcct=null;document.getElementById('org-main').classList.add('hidden');document.getElementById('org-auth').classList.remove('hidden');showToast('info','ออกจากระบบแล้ว','');}
 
@@ -745,7 +756,7 @@ function openFarmerEdit(phone){
 }
 function openFarmerPass(phone){
   const a=findAcc(phone); if(!a) return;
-  openModal('<h3 class="font-display font-bold text-lg text-gray-800 mb-4">รีเซ็ตรหัสผ่าน — '+escapeHtml(a.name)+'</h3><input id="fp-pass" type="text" placeholder="รหัสผ่านใหม่" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"><div class="flex gap-2.5 mt-5"><button id="fp-cancel" class="flex-1 h-11 rounded-xl border border-gray-200 text-gray-500 font-semibold text-sm">ยกเลิก</button><button id="fp-save" class="flex-1 h-11 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm">ตั้งรหัสใหม่</button></div>');
+  openModal('<h3 class="font-display font-bold text-lg text-gray-800 mb-4">รีเซ็ตรหัสผ่าน — '+escapeHtml(a.name)+'</h3><input id="fp-pass" type="password" minlength="8" maxlength="128" autocomplete="new-password" placeholder="รหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"><p class="text-[11px] text-gray-400 mt-2">ต้องมีอย่างน้อย 8 ตัวอักษร</p><div class="flex gap-2.5 mt-5"><button id="fp-cancel" class="flex-1 h-11 rounded-xl border border-gray-200 text-gray-500 font-semibold text-sm">ยกเลิก</button><button id="fp-save" class="flex-1 h-11 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm">ตั้งรหัสใหม่</button></div>');
   document.getElementById('fp-cancel').addEventListener('click',closeModal);
   document.getElementById('fp-save').addEventListener('click',async function(){
     const np=document.getElementById('fp-pass').value.trim(); if(np.length<8){ showToast('info','รหัสผ่านสั้นเกินไป','ต้องมีอย่างน้อย 8 ตัวอักษร'); return; }
@@ -755,7 +766,7 @@ function openFarmerPass(phone){
 }
 function openResetApproval(requestId,phone){
   const a=findAcc(phone);if(!a)return;
-  openModal('<h3 class="font-display font-bold text-lg text-gray-800 mb-2">อนุมัติคำขอรีเซ็ตรหัสผ่าน</h3><p class="text-xs text-gray-400 mb-4">'+escapeHtml(a.name)+' · '+escapeHtml(a.phone)+'</p><input id="ra-pass" type="text" minlength="8" maxlength="128" placeholder="กำหนดรหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm"><p class="text-[11px] text-gray-400 mt-2">แจ้งรหัสใหม่นี้แก่เกษตรกรผ่านช่องทางที่ยืนยันตัวตนแล้ว</p><div class="flex gap-2.5 mt-5"><button id="ra-cancel" class="flex-1 h-11 rounded-xl border border-gray-200 text-gray-500 font-semibold">ยกเลิก</button><button id="ra-save" class="flex-1 h-11 rounded-xl bg-amber-500 text-white font-semibold">อนุมัติและตั้งรหัส</button></div>');
+  openModal('<h3 class="font-display font-bold text-lg text-gray-800 mb-2">อนุมัติคำขอรีเซ็ตรหัสผ่าน</h3><p class="text-xs text-gray-400 mb-4">'+escapeHtml(a.name)+' · '+escapeHtml(a.phone)+'</p><input id="ra-pass" type="password" minlength="8" maxlength="128" autocomplete="new-password" placeholder="กำหนดรหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm"><p class="text-[11px] text-gray-400 mt-2">แจ้งรหัสใหม่นี้แก่เกษตรกรผ่านช่องทางที่ยืนยันตัวตนแล้ว</p><div class="flex gap-2.5 mt-5"><button id="ra-cancel" class="flex-1 h-11 rounded-xl border border-gray-200 text-gray-500 font-semibold">ยกเลิก</button><button id="ra-save" class="flex-1 h-11 rounded-xl bg-amber-500 text-white font-semibold">อนุมัติและตั้งรหัส</button></div>');
   document.getElementById('ra-cancel').addEventListener('click',closeModal);
   document.getElementById('ra-save').addEventListener('click',async function(){const password=document.getElementById('ra-pass').value;if(password.length<8){showToast('info','รหัสผ่านสั้นเกินไป','ต้องมีอย่างน้อย 8 ตัวอักษร');return;}try{await orgApi('/api/org/password-reset-requests/'+encodeURIComponent(requestId),{method:'POST',body:JSON.stringify({action:'approve',password:password})});closeModal();showToast('safe','อนุมัติคำขอแล้ว','เซสชันเดิมถูกยกเลิก กรุณาแจ้งรหัสใหม่แก่เกษตรกร');renderFarmers();}catch(e){showToast('alert','อนุมัติไม่สำเร็จ',e.message);}});
 }
@@ -871,7 +882,7 @@ async function renderPermissions(){
   }); });
 }
 function openAddAdmin(){
-  openModal('<div class="w-11 h-11 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center mb-4"><i class="fa-solid fa-user-plus"></i></div><h3 class="font-display font-bold text-lg text-gray-800">เพิ่มผู้ดูแลระบบ</h3><p class="text-gray-400 text-xs mt-1 mb-4">ผู้ดูแลเข้าสู่ระบบด้วยอีเมล</p><div class="space-y-3"><input id="aa-name" placeholder="ชื่อ-นามสกุล" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"><input id="aa-email" type="email" placeholder="อีเมล" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"><input id="aa-pass" type="text" placeholder="รหัสผ่านเริ่มต้น" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"></div><div class="flex gap-2.5 mt-5"><button id="aa-cancel" class="flex-1 h-11 rounded-xl border border-gray-200 text-gray-500 font-semibold text-sm">ยกเลิก</button><button id="aa-save" class="flex-1 h-11 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm">เพิ่มผู้ดูแล</button></div>');
+  openModal('<div class="w-11 h-11 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center mb-4"><i class="fa-solid fa-user-plus"></i></div><h3 class="font-display font-bold text-lg text-gray-800">เพิ่มผู้ดูแลระบบ</h3><p class="text-gray-400 text-xs mt-1 mb-4">ผู้ดูแลเข้าสู่ระบบด้วยอีเมล</p><div class="space-y-3"><input id="aa-name" placeholder="ชื่อ-นามสกุล" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"><input id="aa-email" type="email" autocomplete="email" placeholder="อีเมล" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"><input id="aa-pass" type="password" minlength="12" maxlength="128" autocomplete="new-password" placeholder="รหัสผ่านเริ่มต้นอย่างน้อย 12 ตัวอักษร" class="w-full h-11 rounded-xl border border-gray-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"><p class="text-[11px] text-gray-400">บัญชีผู้ดูแลควรใช้รหัสผ่านอย่างน้อย 12 ตัวอักษร</p></div><div class="flex gap-2.5 mt-5"><button id="aa-cancel" class="flex-1 h-11 rounded-xl border border-gray-200 text-gray-500 font-semibold text-sm">ยกเลิก</button><button id="aa-save" class="flex-1 h-11 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm">เพิ่มผู้ดูแล</button></div>');
   document.getElementById('aa-cancel').addEventListener('click',closeModal);
   document.getElementById('aa-save').addEventListener('click',async function(){
     const name=document.getElementById('aa-name').value.trim(); const email=document.getElementById('aa-email').value.trim().toLowerCase(); const pass=document.getElementById('aa-pass').value.trim();

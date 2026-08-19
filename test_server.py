@@ -1,4 +1,5 @@
 import json, os, tempfile, threading, unittest, urllib.error, urllib.request
+from pathlib import Path
 from unittest import mock
 from http.server import ThreadingHTTPServer
 
@@ -31,6 +32,20 @@ class BackendTests(unittest.TestCase):
         value=server.hash_password("secret")
         self.assertTrue(server.verify_password("secret",value))
         self.assertFalse(server.verify_password("wrong",value))
+
+    def test_mobile_forms_protect_passwords_and_avoid_input_zoom(self):
+        root=Path(__file__).resolve().parent
+        farmer=(root/"farmer/index.html").read_text()
+        organization=(root/"organization/index.html").read_text()
+        trace=(root/"trace/index.html").read_text()
+        self.assertIn("input,select,textarea{font-size:max(16px",farmer)
+        self.assertIn("input,select,textarea{font-size:16px!important;}",organization)
+        self.assertIn("input,select,textarea{font-size:16px!important;}",trace)
+        for field in ("fp-pass","ra-pass","aa-pass"):
+            self.assertIn(f'id="{field}" type="password"',organization)
+        self.assertNotIn('id="fp-pass" type="text"',organization)
+        self.assertNotIn('id="ra-pass" type="text"',organization)
+        self.assertNotIn('id="aa-pass" type="text"',organization)
 
     def test_distance(self):
         self.assertAlmostEqual(server.haversine(13.5282,99.8134,13.5282,99.8134),0)
@@ -176,6 +191,18 @@ class BackendTests(unittest.TestCase):
         _,data=self.request("GET","/api/map-data",token=farmer["token"])
         self.assertTrue(any(x["id"]==hive["id"] and x["mine"] for x in data["hives"]))
         self.assertEqual(len(data["plants"]),1)
+
+    def test_z_farmer_map_uses_viewport_and_never_exposes_other_hives(self):
+        _,owner=self.request("POST","/api/auth/register",{"phone":"0871234501","password":"strong-pass","name":"เจ้าของมุมมอง","farm":"สวนหนึ่ง"})
+        _,other=self.request("POST","/api/auth/register",{"phone":"0871234502","password":"strong-pass","name":"เกษตรกรอื่น","farm":"สวนสอง"})
+        _,other_hive=self.request("POST","/api/hives",{"name":"รังส่วนตัว","species":"cerana","lat":13.51,"lng":99.81},other["token"])
+        _,near=self.request("POST","/api/plants",{"plant_type":"longan","geometry":{"type":"point","coords":[13.51,99.81]}},other["token"])
+        _,far=self.request("POST","/api/plants",{"plant_type":"longan","geometry":{"type":"point","coords":[18.7,98.9]}},other["token"])
+        status,data=self.request("GET","/api/map-data?bounds=13.4,99.7,13.6,99.9",token=owner["token"])
+        self.assertEqual(status,200)
+        self.assertFalse(any(x["id"]==other_hive["id"] for x in data["hives"]))
+        self.assertTrue(any(x["id"]==near["id"] for x in data["plants"]))
+        self.assertFalse(any(x["id"]==far["id"] for x in data["plants"]))
 
     def test_logout_revokes_session(self):
         _,auth=self.request("POST","/api/auth/register",{"phone":"0855555555","password":"strong-pass","name":"ผู้ทดสอบออก","farm":"ฟาร์มออก"})

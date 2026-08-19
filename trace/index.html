@@ -30,6 +30,7 @@
   main{padding:clamp(1rem,3vw,2rem);gap:clamp(.8rem,2vw,1.5rem);}
   main>section{padding:clamp(1rem,3vw,2rem)!important;border-radius:clamp(1.1rem,3vw,1.75rem)!important;}
   input,button{min-width:0;}
+  @media (max-width:767px){input,select,textarea{font-size:16px!important;}}
   @media (min-width:768px){
     #environment-summary{grid-template-columns:repeat(4,minmax(0,1fr));}
     #farmer-profile>div.grid{grid-template-columns:repeat(2,minmax(0,1fr));}
@@ -85,7 +86,7 @@
 
   <section class="animate-fade-in bg-white rounded-3xl border border-gray-200 shadow-sm p-5">
     <form id="trace-search" class="flex gap-2">
-      <input id="trace-code" required placeholder="กรอกรหัส lot" class="min-w-0 flex-1 h-11 rounded-xl border border-gray-200 px-4 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-amber-400">
+      <input id="trace-code" required autocomplete="off" autocapitalize="characters" placeholder="กรอกรหัส LOT เช่น ECO-..." class="min-w-0 flex-1 h-11 rounded-xl border border-gray-200 px-4 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-amber-400">
       <button class="h-11 rounded-xl bg-amber-500 text-white font-semibold text-sm px-4">ตรวจสอบ</button>
     </form>
     <p id="trace-message" class="hidden text-xs mt-3"></p>

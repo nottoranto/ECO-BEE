@@ -547,7 +547,7 @@ class API(SimpleHTTPRequestHandler):
         return key.startswith((f"profile_{phone}",f"myHives_{phone}",f"seenAlerts_{phone}"))
 
     @staticmethod
-    def map_payload(db, farmer_id=None):
+    def map_payload(db, farmer_id=None, bounds=None):
         hives=db.execute("""SELECT h.*,u.phone owner_phone,u.name owner_name,u.farm owner_farm,
           a.name admin_name FROM hives h LEFT JOIN users u ON u.id=h.user_id
           LEFT JOIN org_admins a ON a.id=h.admin_id ORDER BY h.created_at DESC""").fetchall()
@@ -559,11 +559,20 @@ class API(SimpleHTTPRequestHandler):
           LEFT JOIN org_admins a ON a.id=z.admin_id ORDER BY z.created_at DESC""").fetchall()
         boundaries=[] if farmer_id is None else db.execute(
           "SELECT * FROM farm_boundaries WHERE user_id=? ORDER BY created_at DESC",(farmer_id,)).fetchall()
-        visible_hives=[x for x in hives if farmer_id is None or x["user_id"]==farmer_id or bool(x["is_public"])]
+        def in_bounds_geometry(raw):
+            if not bounds:return True
+            try:lat,lng=geometry_center(json.loads(raw))
+            except (ValueError,TypeError,KeyError):return False
+            south,west,north,east=bounds
+            return south<=lat<=north and west<=lng<=east
+        # Farmer maps never receive another farmer's hive coordinates. Public verification uses the trace endpoints.
+        visible_hives=[x for x in hives if farmer_id is None or x["user_id"]==farmer_id]
+        visible_plants=[x for x in plants if farmer_id is None or x["user_id"]==farmer_id or in_bounds_geometry(x["geometry"])]
+        visible_zones=[x for x in zones if farmer_id is None or x["user_id"]==farmer_id or in_bounds_geometry(x["geometry"])]
         return {
           "hives":[{**dict(x),"mine":farmer_id is not None and x["user_id"]==farmer_id} for x in visible_hives],
-          "plants":[{**dict(x),"months":json.loads(x["months"]),"geometry":json.loads(x["geometry"]),"mine":farmer_id is not None and x["user_id"]==farmer_id} for x in plants],
-          "risk_zones":[{**dict(x),"geometry":json.loads(x["geometry"]),"mine":farmer_id is not None and x["user_id"]==farmer_id} for x in zones],
+          "plants":[{**dict(x),"months":json.loads(x["months"]),"geometry":json.loads(x["geometry"]),"mine":farmer_id is not None and x["user_id"]==farmer_id} for x in visible_plants],
+          "risk_zones":[{**dict(x),"geometry":json.loads(x["geometry"]),"mine":farmer_id is not None and x["user_id"]==farmer_id} for x in visible_zones],
           "farm_boundaries":[{**dict(x),"geometry":json.loads(x["geometry"])} for x in boundaries]
         }
 
@@ -650,7 +659,14 @@ class API(SimpleHTTPRequestHandler):
                 with connect() as db:
                     role,actor=self.actor(db)
                     if not actor:return self.json_response({"error":"unauthorized"},401)
-                    return self.json_response(self.map_payload(db,actor["id"] if role=="farmer" else None))
+                    bounds=None;raw=parse_qs(parsed.query).get("bounds",[""])[0]
+                    if raw:
+                        try:
+                            values=tuple(float(x) for x in raw.split(","))
+                            if len(values)!=4 or not (-90<=values[0]<=values[2]<=90 and -180<=values[1]<=values[3]<=180):raise ValueError
+                            bounds=values
+                        except ValueError:return self.json_response({"error":"invalid_bounds"},400)
+                    return self.json_response(self.map_payload(db,actor["id"] if role=="farmer" else None,bounds))
             if path in ("/api/plant-species","/api/org/plant-species"):
                 with connect() as db:
                     role,actor=self.actor(db)
