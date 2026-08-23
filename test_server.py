@@ -119,6 +119,16 @@ class BackendTests(unittest.TestCase):
         self.assertIn("ผลการค้นหาสถานที่โดย Google",farmer)
         self.assertNotIn("nominatim.openstreetmap.org/search",farmer)
 
+    def test_farmer_gps_search_uses_a_temporary_blue_marker(self):
+        farmer=(Path(__file__).resolve().parent/"farmer/index.html").read_text()
+        self.assertIn("ค้นหาสถานที่ หรือพิกัด GPS",farmer)
+        self.assertIn("function parseGpsCoordinates(value)",farmer)
+        self.assertIn("replace(/^gps\\s*:\\s*/i",farmer)
+        self.assertIn("function showTemporarySearchMarker(lat,lng,label)",farmer)
+        self.assertIn("background:#2563eb",farmer)
+        self.assertIn("หมุดสีน้ำเงินนี้เป็นหมุดชั่วคราวและไม่ได้บันทึกลงระบบ",farmer)
+        self.assertIn("if(temporarySearchMarker)map.removeLayer(temporarySearchMarker)",farmer)
+
     def test_weather_proxy_requires_farmer_login_and_keeps_key_server_side(self):
         self.assertEqual(self.request("GET","/api/weather?lat=13.5&lng=99.8")[0],401)
         _,auth=self.request("POST","/api/auth/register",{"phone":"0867000001","password":"safe-pass","name":"ผู้ทดสอบอากาศ","farm":"ฟาร์มอากาศ"})

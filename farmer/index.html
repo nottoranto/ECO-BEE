@@ -1469,7 +1469,8 @@ const searchInput=document.getElementById('search-input'), searchResults=documen
 searchInput.addEventListener('input', function(){ clearTimeout(searchTimeout); const q=this.value.trim(),seq=++placeSearchSeq,gps=parseGpsCoordinates(q); if(q.length<2){ searchResults.classList.add('hidden'); return; } renderSearchResults(q,[],!gps&&q.length>=3); if(!gps&&q.length>=3)searchTimeout=setTimeout(function(){ runPlaceSearch(q,seq); },350); });
 searchInput.addEventListener('keydown',function(e){const gps=parseGpsCoordinates(this.value);if(e.key==='Enter'&&gps){e.preventDefault();showGpsLocation(gps);}});
 function parseGpsCoordinates(value){
-  const match=String(value||'').trim().match(/^(-?\d{1,2}(?:\.\d+)?)\s*(?:,|\s)\s*(-?\d{1,3}(?:\.\d+)?)$/);
+  const normalized=String(value||'').trim().replace(/^gps\s*:\s*/i,'').replace(/^\(|\)$/g,'').trim();
+  const match=normalized.match(/^([+-]?\d{1,2}(?:\.\d+)?)\s*(?:,|，|\s)\s*([+-]?\d{1,3}(?:\.\d+)?)$/);
   if(!match)return null;
   const lat=Number(match[1]),lng=Number(match[2]);
   return Number.isFinite(lat)&&Number.isFinite(lng)&&lat>=-90&&lat<=90&&lng>=-180&&lng<=180?{lat:lat,lng:lng}:null;
