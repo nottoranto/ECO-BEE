@@ -33,6 +33,15 @@ class BackendTests(unittest.TestCase):
         self.assertTrue(server.verify_password("secret",value))
         self.assertFalse(server.verify_password("wrong",value))
 
+    def test_reference_catalog_is_approved_and_deduplicated(self):
+        with server.connect() as db:
+            rows=db.execute("SELECT thai_name,status FROM plant_species WHERE created_by IS NULL").fetchall()
+        names=[server.normalized_plant_name(row["thai_name"]) for row in rows]
+        self.assertEqual(len(names),len(set(names)))
+        self.assertGreaterEqual(len(names),364)
+        self.assertTrue(all(row["status"]=="approved" for row in rows))
+        self.assertIn("ยอดขวัญชันโรง",names)
+
     def test_mobile_forms_protect_passwords_and_avoid_input_zoom(self):
         root=Path(__file__).resolve().parent
         farmer=(root/"farmer/index.html").read_text()
@@ -171,6 +180,14 @@ class BackendTests(unittest.TestCase):
         _,mapped=self.request("GET","/api/map-data",token=auth["token"])
         saved=next(x for x in mapped["hives"] if x["id"]==hive["id"])
         self.assertEqual(saved["radius_km"],1.2)
+
+    def test_farmer_can_drag_only_their_own_hive(self):
+        _,first=self.request("POST","/api/auth/register",{"phone":"0861110001","password":"safe-pass","name":"เจ้าของรัง","farm":"ฟาร์มหนึ่ง"})
+        _,second=self.request("POST","/api/auth/register",{"phone":"0861110002","password":"safe-pass","name":"ผู้อื่น","farm":"ฟาร์มสอง"})
+        _,hive=self.request("POST","/api/hives",{"name":"รังลากได้","species":"cerana","lat":13.5,"lng":99.8},first["token"])
+        self.assertEqual(self.request("PUT","/api/hives/"+hive["id"],{"lat":13.51,"lng":99.81},second["token"])[0],404)
+        status,moved=self.request("PUT","/api/hives/"+hive["id"],{"lat":13.51,"lng":99.81},first["token"])
+        self.assertEqual(status,200);self.assertEqual((moved["lat"],moved["lng"]),(13.51,99.81))
 
     def test_farm_boundary_is_private_and_owned_by_farmer(self):
         _,first=self.request("POST","/api/auth/register",{"phone":"0871000001","password":"safe-pass","name":"เจ้าของพื้นที่","farm":"สวนหนึ่ง"})

@@ -273,10 +273,10 @@ const monthShortTh = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค
 const monthFullTh = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 
 const SPECIES_DB = {
-  meliponini: { label:'ชันโรง (Meliponini)', radiusKm:0.3 },
-  cerana:     { label:'ผึ้งโพรง (Apis cerana)', radiusKm:1.5 },
-  mellifera:  { label:'ผึ้งพันธุ์ (Apis mellifera)', radiusKm:3 },
-  dorsata:    { label:'ผึ้งหลวง (Apis dorsata)', radiusKm:5 }
+  meliponini: { label:'ชันโรง (Meliponini)', radiusKm:0.3, color:'#8b5cf6' },
+  cerana:     { label:'ผึ้งโพรง (Apis cerana)', radiusKm:1.5, color:'#f59e0b' },
+  mellifera:  { label:'ผึ้งพันธุ์ (Apis mellifera)', radiusKm:3, color:'#0ea5e9' },
+  dorsata:    { label:'ผึ้งหลวง (Apis dorsata)', radiusKm:5, color:'#ef4444' }
 };
 const DEFAULT_PLANT_DB = {
   longan:    { label:'ลำไย', icon:'🌳', months:[0,1,11], why:'ให้ทั้งน้ำหวานและเกสรมากในช่วงต้นปี เป็นแหล่งน้ำผึ้งเดี่ยวดอกที่ตลาดต้องการ' },
@@ -649,16 +649,17 @@ function renderHives(){
   myHives.filter(function(h){return !focusedHiveId||h.id===focusedHiveId;}).forEach(function(h){
     const spec = SPECIES_DB[h.species]||SPECIES_DB.meliponini;
     const radius = h.radiusKm||spec.radiusKm;
-    const icon = L.divIcon({ className:'', html:'<div class="map-pin map-pin-amber" title="รังผึ้ง"><svg viewBox="0 0 24 24" fill="white"><use href="#icon-bee"/></svg></div>', iconSize:[34,34], iconAnchor:[17,17] });
-    const m = L.marker([h.lat,h.lng],{icon:icon,pane:'hiveMarkerPane',zIndexOffset:1000}).addTo(map);
+    const icon = L.divIcon({ className:'', html:'<div class="map-pin" style="background:'+spec.color+'" title="'+escapeHtml(spec.label)+'"><svg viewBox="0 0 24 24" fill="white"><use href="#icon-bee"/></svg></div>', iconSize:[34,34], iconAnchor:[17,17] });
+    const m = L.marker([h.lat,h.lng],{icon:icon,pane:'hiveMarkerPane',zIndexOffset:1000,draggable:true}).addTo(map);
     m.bindPopup('<div class="popup-title">🐝 '+escapeHtml(h.name||'รังผึ้งของฉัน')+' <span style="font-size:10px;color:#f59e0b">🔒 ส่วนตัว</span></div>' +
       '<div class="popup-row"><span>สายพันธุ์</span><b>'+escapeHtml(spec.label)+'</b></div>' +
       '<div class="popup-row"><span>รัศมีหาอาหาร</span><b>'+radius+' กม.</b></div>' +
       (h.note?'<div class="popup-row"><span>บันทึก</span><b>'+escapeHtml(h.note)+'</b></div>':'') +
       '<button data-delhive class="popup-del-btn"><i class="fa-solid fa-trash-can mr-1"></i>ลบรังนี้</button>');
     m.on('click',function(e){forwardLayerClickToActiveMode(e,m);});
+    m.on('dragend',async function(){const pos=m.getLatLng(),old=[h.lat,h.lng];h.lat=pos.lat;h.lng=pos.lng;try{await api('/api/hives/'+encodeURIComponent(h.id),{method:'PUT',body:JSON.stringify({lat:pos.lat,lng:pos.lng})});showToast('safe','ย้ายตำแหน่งรังแล้ว','บันทึกพิกัดใหม่เรียบร้อย');renderAll();}catch(error){h.lat=old[0];h.lng=old[1];m.setLatLng(old);showToast('alert','ย้ายรังไม่สำเร็จ',error.message);}});
     m.on('popupopen', function(e){ const el=e.popup.getElement().querySelector('[data-delhive]'); if(el) el.addEventListener('click', function(){ deleteHive(h.id); }); });
-    const c = L.circle([h.lat,h.lng],{ pane:'hiveRangePane',radius: radius*1000, color:'#f59e0b', weight:2, fillColor:'#f59e0b', fillOpacity:0.07 }).addTo(map);
+    const c = L.circle([h.lat,h.lng],{ pane:'hiveRangePane',radius: radius*1000, color:spec.color, weight:2, fillColor:spec.color, fillOpacity:0.07 }).addTo(map);
     c.on('click',function(e){forwardLayerClickToActiveMode(e,c);});
     hiveRefs.push(m,c);
   });
@@ -671,7 +672,9 @@ function renderPlants(){
     const plant = PLANT_CATALOG[p.type]||{label:p.type,icon:'🌿'};
     const name = plant.label + (p.variety?(' · พันธุ์'+escapeHtml(p.variety)):'');
     const canDelete = p.ownerPhone === session.phone;
-    const html='<div class="popup-title">'+plant.icon+' '+escapeHtml(name)+'</div>'+(p.note?'<div class="popup-row"><span>บันทึก</span><b>'+escapeHtml(p.note)+'</b></div>':'')+'<div class="popup-row"><span>ผู้บันทึก</span><b>'+escapeHtml(p.ownerName||'ไม่ระบุ')+'</b></div>'+(canDelete?'<button data-delplant class="popup-del-btn"><i class="fa-solid fa-trash-can mr-1"></i>ลบข้อมูลนี้</button>':'');
+    const bloomLabels={unknown:'ไม่ทราบ',not_blooming:'ยังไม่ออกดอก',starting:'เริ่มออกดอก',medium:'ออกดอกปานกลาง',high:'ออกดอกมาก',ended:'ดอกโรยแล้ว'};
+    const plotCode='PL-'+String(p.id||'').replace(/^plant_/,'').slice(-6).toUpperCase();
+    const html='<div class="popup-title">'+plant.icon+' '+escapeHtml(name)+'</div><div class="popup-row"><span>รหัสแปลง</span><b>'+escapeHtml(plotCode)+'</b></div>'+(p.treeCount?'<div class="popup-row"><span>จำนวนต้น</span><b>'+Number(p.treeCount).toLocaleString('th-TH')+' ต้น</b></div>':'')+'<div class="popup-row"><span>การออกดอก</span><b>'+escapeHtml(bloomLabels[p.bloomStatus]||bloomLabels.unknown)+'</b></div>'+(p.note?'<div class="popup-row"><span>บันทึก</span><b>'+escapeHtml(p.note)+'</b></div>':'')+'<div class="popup-row"><span>ผู้บันทึก</span><b>'+escapeHtml(p.ownerName||'ไม่ระบุ')+'</b></div>'+(canDelete?'<button data-delplant class="popup-del-btn"><i class="fa-solid fa-trash-can mr-1"></i>ลบข้อมูลนี้</button>':'');
     if(p.geom.type==='point'){
       const icon=L.divIcon({className:'',html:'<div class="map-pin map-pin-emerald map-pin-secondary" title="'+escapeHtml(plant.label)+'"><span class="map-pin-plant-emoji" aria-hidden="true">'+escapeHtml(plant.icon||'🌿')+'</span></div>',iconSize:[24,24],iconAnchor:[12,12]});
       const m=L.marker(p.geom.coords,{icon:icon,pane:'plantMarkerPane'}).addTo(map); m.bindPopup(html);

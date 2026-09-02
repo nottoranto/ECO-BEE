@@ -162,6 +162,7 @@
     <div class="bg-gray-50 border border-dashed border-gray-300 rounded-2xl p-6 text-center">
       <div id="qr-holder" class="inline-block bg-white p-3 rounded-2xl border border-gray-200 shadow-sm"></div>
       <p id="qr-caption" class="text-xs text-gray-400 mt-4 leading-relaxed">รหัสนี้เชื่อมโยงกับข้อมูลแหล่งที่มาของน้ำผึ้งรังนี้</p>
+      <a id="line-share" class="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-[#06C755] px-4 py-2.5 text-sm font-semibold text-white" target="_blank" rel="noopener"><i class="fa-brands fa-line"></i>ส่งข้อมูลผ่าน LINE</a>
     </div>
   </section>
 
@@ -207,6 +208,7 @@ startLiveClock();
       document.getElementById('qr-holder').innerHTML='';
       new QRCode(document.getElementById('qr-holder'),{text:location.origin+'/trace?code='+encodeURIComponent(data.batch_code),width:150,height:150,colorDark:'#1f2937',colorLight:'#fff'});
       document.getElementById('qr-caption').textContent='รหัส lot '+data.batch_code+' · เก็บเกี่ยว '+new Date(data.harvested_at).toLocaleDateString('th-TH');
+      document.getElementById('line-share').href='https://line.me/R/msg/text/?'+encodeURIComponent('ตรวจสอบแหล่งที่มา '+data.product+' · '+location.origin+'/trace?code='+encodeURIComponent(data.batch_code));
       const plantList=document.getElementById('plant-list'),env=data.environment||{},nearby=env.plants||[];
       plantList.innerHTML=nearby.length?nearby.map(function(item){const plant=PLANT_CATALOG[item.type]||{label:item.type,icon:'🌿'};return '<div class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl border border-gray-100"><span class="text-lg">'+plant.icon+'</span><span class="flex-1 min-w-0"><span class="block text-sm font-semibold text-gray-700 truncate">'+escapeHtml(plant.label+(item.variety?' · พันธุ์'+item.variety:''))+'</span><span class="block text-[10px] text-gray-400">บันทึกในรัศมีหาอาหาร '+item.count+' จุด</span></span></div>';}).join(''):'<p class="text-xs text-gray-400">ยังไม่มีข้อมูลพืชอาหารที่ยืนยันในรัศมีหาอาหารของรังนี้</p>';
       renderEnvironment(data);

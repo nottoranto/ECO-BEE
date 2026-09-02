@@ -26,6 +26,7 @@ except ImportError:  # Local SQLite development does not require PostgreSQL extr
 
 ROOT = Path(__file__).resolve().parent
 RESEARCH_DATA_PATH = ROOT / "data" / "research_plants.json"
+REFERENCE_CATALOG_PATH = ROOT / "data" / "reference_catalog.json"
 DB_PATH = Path(os.environ.get("ECOBEE_DB", ROOT / "ecobee.db"))
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 GOOGLE_WEATHER_API_KEY = os.environ.get("GOOGLE_WEATHER_API_KEY", "").strip()
@@ -309,6 +310,43 @@ def seed_research_data(db):
           ON CONFLICT(code) DO NOTHING""",(item["code"],item["plant_code"],item["bee_species"],item["headline"],
           item.get("context",""),json.dumps(item.get("evidence",{}),ensure_ascii=False),item.get("recommendation",""),
           evidence_source,item.get("source_pages",""),'medium',stamp,stamp))
+    seed_reference_catalog(db)
+
+
+def normalized_plant_name(name):
+    return " ".join(str(name).strip().split())
+
+
+def seed_reference_catalog(db):
+    """Import approved PDF catalogue entries once, deduplicated by display name."""
+    if not REFERENCE_CATALOG_PATH.exists():return
+    catalog=json.loads(REFERENCE_CATALOG_PATH.read_text(encoding="utf-8"))
+    existing_by_name={normalized_plant_name(row["thai_name"]):row for row in db.execute(
+        "SELECT code,thai_name,confidence,source_title FROM plant_species"
+    ).fetchall()}
+    stamp=now_ms()
+    for item in catalog.get("plants",[]):
+        name=normalized_plant_name(item.get("thai_name",""))
+        if not name:continue
+        existing=existing_by_name.get(name)
+        if existing:
+            # Enrich built-in placeholder rows while retaining their stable codes.
+            if existing["confidence"]=='unverified' and not existing["source_title"]:
+                db.execute("""UPDATE plant_species SET common_name=?,scientific_name=?,category=?,resource_type=?,
+                  flowering_months=?,source_title=?,source_url=?,confidence=?,status='approved',updated_at=? WHERE code=?""",
+                  (item.get("common_name",""),item.get("scientific_name",""),item.get("category","other"),
+                   item.get("resource_type","unknown"),json.dumps(item.get("flowering_months",[])),
+                   item.get("source_title",""),item.get("source_url",""),item.get("confidence","unverified"),
+                   stamp,existing["code"]))
+            continue
+        db.execute("""INSERT INTO plant_species(code,thai_name,common_name,scientific_name,category,resource_type,
+          flowering_months,source_title,source_url,confidence,status,created_at,updated_at)
+          VALUES(?,?,?,?,?,?,?,?,?,?,?, ?,?) ON CONFLICT(code) DO NOTHING""",
+          (item["code"],name,item.get("common_name",""),item.get("scientific_name",""),item.get("category","other"),
+           item.get("resource_type","unknown"),json.dumps(item.get("flowering_months",[])),item.get("source_title",""),
+           item.get("source_url",""),item.get("confidence","unverified"),'approved',stamp,stamp))
+        existing_by_name[name]={"code":item["code"],"thai_name":name,"confidence":item.get("confidence","unverified"),
+                                "source_title":item.get("source_title","")}
 
 
 def migrate_legacy_map_data(db):
@@ -849,6 +887,15 @@ class API(SimpleHTTPRequestHandler):
                     if not admin:return self.json_response({"error":"unauthorized"},401)
                     cur=db.execute("UPDATE hives SET is_public=? WHERE id=? AND admin_id=?",(int(bool(data.get("is_public"))),hive_id,admin["id"]))
                 return self.json_response({"ok":True}) if cur.rowcount else self.json_response({"error":"not_found"},404)
+            if path.startswith("/api/hives/"):
+                hive_id=unquote(path[len("/api/hives/"):]);data=self.body()
+                lat,lng=float(data.get("lat")),float(data.get("lng"))
+                if not -90<=lat<=90 or not -180<=lng<=180:raise ValueError("invalid_coordinates")
+                with connect() as db:
+                    farmer=self.require_user(db)
+                    if not farmer:return
+                    cur=db.execute("UPDATE hives SET lat=?,lng=? WHERE id=? AND user_id=?",(lat,lng,hive_id,farmer["id"]))
+                return self.json_response({"ok":True,"lat":lat,"lng":lng}) if cur.rowcount else self.json_response({"error":"not_found"},404)
             if path.startswith("/api/org/plant-species/"):
                 code=unquote(path[len("/api/org/plant-species/"):]);data=self.body()
                 with connect() as db:
