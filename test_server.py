@@ -74,6 +74,8 @@ class BackendTests(unittest.TestCase):
         self.assertIn("tree_count:treeCount",farmer)
         self.assertIn("polygonAreaRai(geom.coords)",farmer)
         self.assertNotIn('id="plant-area"',farmer)
+        self.assertNotIn('id="plant-research"',farmer)
+        self.assertNotIn('ข้อมูลนี้ใช้ช่วยวางแผน แต่ยังไม่ใช้คำนวณจำนวนรัง',farmer)
 
     def test_distance(self):
         self.assertAlmostEqual(server.haversine(13.5282,99.8134,13.5282,99.8134),0)
