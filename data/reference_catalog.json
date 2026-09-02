@@ -80,21 +80,6 @@
       "code": "flora_citrus_aurantifolia"
     },
     {
-      "source_row": "bee_flora_1_7",
-      "thai_name": "Bitter oragne",
-      "common_name": "Bitter oragne",
-      "scientific_name": "Citrus aurantinum Linn",
-      "category": "perennial_crop",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Pyraman and Wongsiri, 1986, Rod-im P",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_citrus_aurantinum"
-    },
-    {
       "source_row": "bee_flora_1_9",
       "thai_name": "เลมอน",
       "common_name": "Lemon",
@@ -228,36 +213,6 @@
       "confidence": "medium",
       "status": "draft",
       "code": "flora_eugenia_javanica"
-    },
-    {
-      "source_row": "bee_flora_2_18",
-      "thai_name": "ชมพู่สาแหรก Pomerac",
-      "common_name": "Pomerac",
-      "scientific_name": "Eugenia malaccensis Linn.",
-      "category": "perennial_crop",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Pyraman and Wongsiri, 1986",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_eugenia_malaccensis"
-    },
-    {
-      "source_row": "bee_flora_2_21",
-      "thai_name": "Cassava, Topioca",
-      "common_name": "Cassava, Topioca",
-      "scientific_name": "Manihot esculenta Crantz",
-      "category": "perennial_crop",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_manihot_esculenta"
     },
     {
       "source_row": "bee_flora_2_23",
@@ -560,21 +515,6 @@
       "code": "flora_brassica_oleracea_var_capitata"
     },
     {
-      "source_row": "bee_flora_4_10",
-      "thai_name": "ผักกาดขาวปลี",
-      "common_name": "Turnip",
-      "scientific_name": "Brassica rapa",
-      "category": "annual_crop",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_brassica_rapa"
-    },
-    {
       "source_row": "bee_flora_4_11",
       "thai_name": "ถั่วแระ",
       "common_name": "Pigeon pea",
@@ -725,21 +665,6 @@
       "code": "flora_glycine_max"
     },
     {
-      "source_row": "bee_flora_5_21",
-      "thai_name": "Niger",
-      "common_name": "Niger",
-      "scientific_name": "Guizotia abyssinica",
-      "category": "annual_crop",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_guizotia_abyssinica"
-    },
-    {
       "source_row": "bee_flora_5_22",
       "thai_name": "ทานตะวัน",
       "common_name": "Sun flower",
@@ -753,21 +678,6 @@
       "confidence": "medium",
       "status": "draft",
       "code": "flora_helianthus_annus"
-    },
-    {
-      "source_row": "bee_flora_5_23",
-      "thai_name": "มันเทศ",
-      "common_name": "Sweet potato",
-      "scientific_name": "Ipomoea batata",
-      "category": "annual_crop",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011, Rod-im P",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_ipomoea_batata"
     },
     {
       "source_row": "bee_flora_5_24",
@@ -1115,21 +1025,6 @@
       "code": "flora_acacia_farnesiana"
     },
     {
-      "source_row": "bee_flora_7_2",
-      "thai_name": "Garden amaranth",
-      "common_name": "Garden amaranth",
-      "scientific_name": "Amaranthus cruentus",
-      "category": "ornamental",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_amaranthus_cruentus"
-    },
-    {
       "source_row": "bee_flora_7_3",
       "thai_name": "ถั่วบราซิล",
       "common_name": "Pinto peanut",
@@ -1383,21 +1278,6 @@
       "confidence": "medium",
       "status": "draft",
       "code": "flora_euphorbia_pulcherrima"
-    },
-    {
-      "source_row": "bee_flora_8_20",
-      "thai_name": "Silky oak",
-      "common_name": "Silky oak",
-      "scientific_name": "Grevillea robusta",
-      "category": "ornamental",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_grevillea_robusta"
     },
     {
       "source_row": "bee_flora_8_21",
@@ -1700,21 +1580,6 @@
       "code": "flora_rosa_hybrida"
     },
     {
-      "source_row": "bee_flora_9_42",
-      "thai_name": "Salvia",
-      "common_name": "Salvia",
-      "scientific_name": "Salvia sp.",
-      "category": "ornamental",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_salvia_sp"
-    },
-    {
       "source_row": "bee_flora_9_43",
       "thai_name": "จามจุรี",
       "common_name": "Rain tree",
@@ -1850,21 +1715,6 @@
       "code": "flora_verbena_hybrida"
     },
     {
-      "source_row": "bee_flora_10_1",
-      "thai_name": "Indian butter tree",
-      "common_name": "Indian butter tree",
-      "scientific_name": "Aesandra butyracea",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011, Rod-im P",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_aesandra_butyracea"
-    },
-    {
       "source_row": "bee_flora_10_2",
       "thai_name": "มะลิลา, พระรามแผลงศร",
       "common_name": "Century plant",
@@ -1940,21 +1790,6 @@
       "code": "flora_alternanthera_ficoides"
     },
     {
-      "source_row": "bee_flora_10_7",
-      "thai_name": "Anaphalis busua",
-      "common_name": "",
-      "scientific_name": "Anaphalis busua",
-      "category": "wild",
-      "resource_type": "pollen",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_anaphalis_busua"
-    },
-    {
       "source_row": "bee_flora_10_8",
       "thai_name": "ว่านขาว",
       "common_name": "Cobra lily",
@@ -1983,21 +1818,6 @@
       "confidence": "medium",
       "status": "draft",
       "code": "flora_artemisia_indica"
-    },
-    {
-      "source_row": "bee_flora_10_10",
-      "thai_name": "Startwort",
-      "common_name": "Startwort",
-      "scientific_name": "Aster sp.",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_aster_sp"
     },
     {
       "source_row": "bee_flora_10_11",
@@ -2073,21 +1893,6 @@
       "confidence": "medium",
       "status": "draft",
       "code": "flora_bidens_sp"
-    },
-    {
-      "source_row": "bee_flora_10_16",
-      "thai_name": "Silk cotton",
-      "common_name": "Silk cotton",
-      "scientific_name": "Bombax ceiba",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011, Pyraman and Wongsiri, 1986, Rod-im P",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_bombax_ceiba"
     },
     {
       "source_row": "bee_flora_10_17",
@@ -2193,21 +1998,6 @@
       "confidence": "medium",
       "status": "draft",
       "code": "flora_cynodon_dactylon"
-    },
-    {
-      "source_row": "bee_flora_11_26",
-      "thai_name": "Hounds tongue",
-      "common_name": "Hounds tongue",
-      "scientific_name": "Cynoglossum sp",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_cynoglossum_sp"
     },
     {
       "source_row": "bee_flora_11_27",
@@ -2330,21 +2120,6 @@
       "code": "flora_erythrina_stricta"
     },
     {
-      "source_row": "bee_flora_11_35",
-      "thai_name": "ยูคาลิปตัส",
-      "common_name": "Eucalyptus",
-      "scientific_name": "Eucalyptus sp.",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011, Rod-im P",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_eucalyptus_sp"
-    },
-    {
       "source_row": "bee_flora_12_36",
       "thai_name": "สาบเสือ",
       "common_name": "White snake",
@@ -2375,21 +2150,6 @@
       "code": "flora_eupatorium_adenophorum"
     },
     {
-      "source_row": "bee_flora_12_38",
-      "thai_name": "Alpine strawbery",
-      "common_name": "Alpine strawbery",
-      "scientific_name": "Fragaria nubicola",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_fragaria_nubicola"
-    },
-    {
       "source_row": "bee_flora_12_39",
       "thai_name": "จันทร์ทอง",
       "common_name": "Ash tree",
@@ -2403,36 +2163,6 @@
       "confidence": "medium",
       "status": "draft",
       "code": "flora_fraxinus_floribunda"
-    },
-    {
-      "source_row": "bee_flora_12_40",
-      "thai_name": "Gentiana",
-      "common_name": "Gentiana",
-      "scientific_name": "Gentiana pedicellata",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_gentiana_pedicellata"
-    },
-    {
-      "source_row": "bee_flora_12_41",
-      "thai_name": "Bhemal",
-      "common_name": "Bhemal",
-      "scientific_name": "Grewia optiva",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": true,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_grewia_optiva"
     },
     {
       "source_row": "bee_flora_12_42",
@@ -2450,51 +2180,6 @@
       "code": "flora_hevea_brasiliensis"
     },
     {
-      "source_row": "bee_flora_12_43",
-      "thai_name": "Ghottapre",
-      "common_name": "Ghottapre",
-      "scientific_name": "Hydrocotyle nepalensis",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_hydrocotyle_nepalensis"
-    },
-    {
-      "source_row": "bee_flora_12_44",
-      "thai_name": "Hypericum",
-      "common_name": "Hypericum",
-      "scientific_name": "Hypericum cordifolium",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_hypericum_cordifolium"
-    },
-    {
-      "source_row": "bee_flora_12_45",
-      "thai_name": "Hypericum sp.",
-      "common_name": "",
-      "scientific_name": "Hypericum sp.",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_hypericum_sp"
-    },
-    {
       "source_row": "bee_flora_12_46",
       "thai_name": "สบู่ดำ",
       "common_name": "Jatropha",
@@ -2508,21 +2193,6 @@
       "confidence": "medium",
       "status": "draft",
       "code": "flora_jatropha_curcas"
-    },
-    {
-      "source_row": "bee_flora_12_47",
-      "thai_name": "Juniper",
-      "common_name": "Juniper",
-      "scientific_name": "Juniperus spp.",
-      "category": "wild",
-      "resource_type": "unknown",
-      "provides_honeydew": true,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_juniperus_spp"
     },
     {
       "source_row": "bee_flora_12_48",
@@ -2600,36 +2270,6 @@
       "code": "flora_maclura_cochinchinensis"
     },
     {
-      "source_row": "bee_flora_13_54",
-      "thai_name": "Maesa chisia",
-      "common_name": "",
-      "scientific_name": "Maesa chisia",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_maesa_chisia"
-    },
-    {
-      "source_row": "bee_flora_13_55",
-      "thai_name": "Mazus sp.",
-      "common_name": "",
-      "scientific_name": "Mazus sp.",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_mazus_sp"
-    },
-    {
       "source_row": "bee_flora_13_56",
       "thai_name": "เลี่ยน",
       "common_name": "China berry",
@@ -2690,21 +2330,6 @@
       "code": "flora_mimosa_pigra"
     },
     {
-      "source_row": "bee_flora_13_60",
-      "thai_name": "Paper chase",
-      "common_name": "Paper chase",
-      "scientific_name": "Mussaenda roxburghill",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_mussaenda_roxburghill"
-    },
-    {
       "source_row": "bee_flora_13_61",
       "thai_name": "หม่อนอ่อน",
       "common_name": "Bay berry",
@@ -2718,21 +2343,6 @@
       "confidence": "medium",
       "status": "draft",
       "code": "flora_myrica_esculenta"
-    },
-    {
-      "source_row": "bee_flora_13_62",
-      "thai_name": "Prickly pear",
-      "common_name": "Prickly pear",
-      "scientific_name": "Opuntia monacantha",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_opuntia_monacantha"
     },
     {
       "source_row": "bee_flora_13_63",
@@ -2870,21 +2480,6 @@
       "code": "flora_prunus_cerasoides"
     },
     {
-      "source_row": "bee_flora_14_73",
-      "thai_name": "Wild pear",
-      "common_name": "Wild pear",
-      "scientific_name": "Pyrus pashia",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_pyrus_pashia"
-    },
-    {
       "source_row": "bee_flora_14_74",
       "thai_name": "มักกักเขา",
       "common_name": "Nepal sumac",
@@ -3005,51 +2600,6 @@
       "code": "flora_shorea_robusta"
     },
     {
-      "source_row": "bee_flora_14_82",
-      "thai_name": "Sonchus asper.",
-      "common_name": "",
-      "scientific_name": "Sonchus asper.",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_sonchus_asper"
-    },
-    {
-      "source_row": "bee_flora_14_83",
-      "thai_name": "Stellaria vestita",
-      "common_name": "",
-      "scientific_name": "Stellaria vestita",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_stellaria_vestita"
-    },
-    {
-      "source_row": "bee_flora_14_84",
-      "thai_name": "Syzigium operculata",
-      "common_name": "",
-      "scientific_name": "Syzigium operculata",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_syzigium_operculata"
-    },
-    {
       "source_row": "bee_flora_14_85",
       "thai_name": "หว้า",
       "common_name": "Jam bolan",
@@ -3108,21 +2658,6 @@
       "confidence": "medium",
       "status": "draft",
       "code": "flora_tridax_procumbers"
-    },
-    {
-      "source_row": "bee_flora_15_89",
-      "thai_name": "Trichilia connaroides",
-      "common_name": "",
-      "scientific_name": "Trichilia connaroides",
-      "category": "wild",
-      "resource_type": "both",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "Bee Flora by BeePark (Rod-im P. edited)",
-      "source_reference": "Adhikari and Ranabhat 2011",
-      "confidence": "medium",
-      "status": "draft",
-      "code": "flora_trichilia_connaroides"
     },
     {
       "source_row": "bee_flora_15_90",
@@ -3198,20 +2733,6 @@
       "confidence": "medium",
       "status": "draft",
       "code": "flora_zizyphus_sp"
-    },
-    {
-      "code": "supplemental_001",
-      "thai_name": "ยางพารา",
-      "common_name": "",
-      "scientific_name": "",
-      "category": "other",
-      "resource_type": "unknown",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "ECO BEE ตารางรายการพืชอาหาร (เพิ่มเติม)",
-      "source_reference": "supplemental_001",
-      "confidence": "unverified",
-      "status": "draft"
     },
     {
       "code": "supplemental_003",
@@ -3299,7 +2820,7 @@
     },
     {
       "code": "supplemental_016",
-      "thai_name": "1 6 ซำมะเรียง",
+      "thai_name": "ซำมะเรียง",
       "common_name": "",
       "scientific_name": "",
       "category": "other",
@@ -3354,20 +2875,6 @@
       "status": "draft"
     },
     {
-      "code": "supplemental_022",
-      "thai_name": "2 2 กระท้อน",
-      "common_name": "",
-      "scientific_name": "",
-      "category": "other",
-      "resource_type": "unknown",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "ECO BEE ตารางรายการพืชอาหาร (เพิ่มเติม)",
-      "source_reference": "supplemental_022",
-      "confidence": "unverified",
-      "status": "draft"
-    },
-    {
       "code": "supplemental_023",
       "thai_name": "อินทผาลัม",
       "common_name": "",
@@ -3392,20 +2899,6 @@
       "flowering_months": [],
       "source_title": "ECO BEE ตารางรายการพืชอาหาร (เพิ่มเติม)",
       "source_reference": "supplemental_024",
-      "confidence": "unverified",
-      "status": "draft"
-    },
-    {
-      "code": "supplemental_025",
-      "thai_name": "2 5 มะตูม",
-      "common_name": "",
-      "scientific_name": "",
-      "category": "other",
-      "resource_type": "unknown",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "ECO BEE ตารางรายการพืชอาหาร (เพิ่มเติม)",
-      "source_reference": "supplemental_025",
       "confidence": "unverified",
       "status": "draft"
     },
@@ -3509,7 +3002,7 @@
     },
     {
       "code": "supplemental_037",
-      "thai_name": "3 7 กันเกรา",
+      "thai_name": "กันเกรา",
       "common_name": "",
       "scientific_name": "",
       "category": "other",
@@ -3676,20 +3169,6 @@
       "status": "draft"
     },
     {
-      "code": "supplemental_052",
-      "thai_name": "5 2 มะขามป้อม",
-      "common_name": "",
-      "scientific_name": "",
-      "category": "other",
-      "resource_type": "unknown",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "ECO BEE ตารางรายการพืชอาหาร (เพิ่มเติม)",
-      "source_reference": "supplemental_052",
-      "confidence": "unverified",
-      "status": "draft"
-    },
-    {
       "code": "supplemental_054",
       "thai_name": "ต้นผึ้ง",
       "common_name": "",
@@ -3788,20 +3267,6 @@
       "status": "draft"
     },
     {
-      "code": "supplemental_064",
-      "thai_name": "6 4 ไมยราบ",
-      "common_name": "",
-      "scientific_name": "",
-      "category": "other",
-      "resource_type": "unknown",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "ECO BEE ตารางรายการพืชอาหาร (เพิ่มเติม)",
-      "source_reference": "supplemental_064",
-      "confidence": "unverified",
-      "status": "draft"
-    },
-    {
       "code": "supplemental_065",
       "thai_name": "ดีปรี",
       "common_name": "",
@@ -3831,7 +3296,7 @@
     },
     {
       "code": "supplemental_067",
-      "thai_name": "6 7 ผักโขม",
+      "thai_name": "ผักโขม",
       "common_name": "",
       "scientific_name": "",
       "category": "other",
@@ -3971,7 +3436,7 @@
     },
     {
       "code": "supplemental_079",
-      "thai_name": "79 พวงชมพู",
+      "thai_name": "พวงชมพู",
       "common_name": "",
       "scientific_name": "",
       "category": "other",
@@ -4012,20 +3477,6 @@
       "status": "draft"
     },
     {
-      "code": "supplemental_082",
-      "thai_name": "8 2 ทองอุไร",
-      "common_name": "",
-      "scientific_name": "",
-      "category": "other",
-      "resource_type": "unknown",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "ECO BEE ตารางรายการพืชอาหาร (เพิ่มเติม)",
-      "source_reference": "supplemental_082",
-      "confidence": "unverified",
-      "status": "draft"
-    },
-    {
       "code": "supplemental_083",
       "thai_name": "บัว",
       "common_name": "",
@@ -4041,7 +3492,7 @@
     },
     {
       "code": "supplemental_085",
-      "thai_name": "8 5 อัญชัน",
+      "thai_name": "อัญชัน",
       "common_name": "",
       "scientific_name": "",
       "category": "other",
@@ -4153,7 +3604,7 @@
     },
     {
       "code": "supplemental_094",
-      "thai_name": "9 4 มะกอก",
+      "thai_name": "มะกอก",
       "common_name": "",
       "scientific_name": "",
       "category": "other",
@@ -4162,20 +3613,6 @@
       "flowering_months": [],
       "source_title": "ECO BEE ตารางรายการพืชอาหาร (เพิ่มเติม)",
       "source_reference": "supplemental_094",
-      "confidence": "unverified",
-      "status": "draft"
-    },
-    {
-      "code": "supplemental_095",
-      "thai_name": "9 5 พุทรา",
-      "common_name": "",
-      "scientific_name": "",
-      "category": "other",
-      "resource_type": "unknown",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "ECO BEE ตารางรายการพืชอาหาร (เพิ่มเติม)",
-      "source_reference": "supplemental_095",
       "confidence": "unverified",
       "status": "draft"
     },
@@ -4279,7 +3716,7 @@
     },
     {
       "code": "supplemental_106",
-      "thai_name": "10ใบระบาด",
+      "thai_name": "ใบระบาด",
       "common_name": "",
       "scientific_name": "",
       "category": "other",
@@ -4386,20 +3823,6 @@
       "flowering_months": [],
       "source_title": "ECO BEE ตารางรายการพืชอาหาร (เพิ่มเติม)",
       "source_reference": "supplemental_114",
-      "confidence": "unverified",
-      "status": "draft"
-    },
-    {
-      "code": "supplemental_116",
-      "thai_name": "คุณนายตื่นสาย",
-      "common_name": "",
-      "scientific_name": "",
-      "category": "other",
-      "resource_type": "unknown",
-      "provides_honeydew": false,
-      "flowering_months": [],
-      "source_title": "ECO BEE ตารางรายการพืชอาหาร (เพิ่มเติม)",
-      "source_reference": "supplemental_116",
       "confidence": "unverified",
       "status": "draft"
     },
@@ -4875,7 +4298,7 @@
     "supplemental_rows": 150,
     "supplemental_new_drafts": 119,
     "supplemental_matches": 31,
-    "catalogue_total_after_import": 367
+    "catalogue_total_after_import": 328
   },
   "matches": {
     "bee_flora_to_current": [

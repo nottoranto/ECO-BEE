@@ -1,4 +1,4 @@
-import json, os, tempfile, threading, unittest, urllib.error, urllib.parse, urllib.request
+import json, os, re, tempfile, threading, unittest, urllib.error, urllib.parse, urllib.request
 from pathlib import Path
 from unittest import mock
 from http.server import ThreadingHTTPServer
@@ -38,8 +38,9 @@ class BackendTests(unittest.TestCase):
             rows=db.execute("SELECT thai_name,status FROM plant_species WHERE created_by IS NULL").fetchall()
         names=[server.normalized_plant_name(row["thai_name"]) for row in rows]
         self.assertEqual(len(names),len(set(names)))
-        self.assertGreaterEqual(len(names),364)
+        self.assertEqual(len(names),330)
         self.assertTrue(all(row["status"]=="approved" for row in rows))
+        self.assertTrue(all(re.search(r"[ก-๙]",name) and not re.search(r"[A-Za-z0-9]",name) for name in names))
         self.assertIn("ยอดขวัญชันโรง",names)
         for corrected in ("ยางพารา","คุณนายตื่นสาย","ชวนชม","ดาวเรือง","มะตูมแขก","มะม่วงหาวมะนาวโห่","บุหงาส่าหรี","เข็มปัตตาเวีย"):
             self.assertIn(corrected,names)
