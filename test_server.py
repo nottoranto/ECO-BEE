@@ -41,6 +41,10 @@ class BackendTests(unittest.TestCase):
         self.assertGreaterEqual(len(names),364)
         self.assertTrue(all(row["status"]=="approved" for row in rows))
         self.assertIn("ยอดขวัญชันโรง",names)
+        for corrected in ("ยางพารา","คุณนายตื่นสาย","ชวนชม","ดาวเรือง","มะตูมแขก","มะม่วงหาวมะนาวโห่","บุหงาส่าหรี","เข็มปัตตาเวีย"):
+            self.assertIn(corrected,names)
+        for misspelled in ("ขางพารา","คุณนายตื่นสาข","ช่วนชม","ดาวเรื่อง","มะดูมแขก","มะม่วงหาวมะนาวโห","บุหงาส่าหรื","เข็มปิตตาเวีย"):
+            self.assertNotIn(misspelled,names)
 
     def test_phase2_field_schema_is_additive(self):
         with server.connect() as db:

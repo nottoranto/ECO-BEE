@@ -1671,7 +1671,7 @@
     },
     {
       "source_row": "bee_flora_9_40",
-      "thai_name": "คุณนายตื่นสาข",
+      "thai_name": "คุณนายตื่นสาย",
       "common_name": "Rose mose, Sun plant,",
       "scientific_name": "Portulace grandiflora",
       "category": "ornamental",
@@ -1746,7 +1746,7 @@
     },
     {
       "source_row": "bee_flora_9_45",
-      "thai_name": "ดาวเรื่อง",
+      "thai_name": "ดาวเรือง",
       "common_name": "Marigold",
       "scientific_name": "Tagetes erecta",
       "category": "ornamental",
@@ -2436,7 +2436,7 @@
     },
     {
       "source_row": "bee_flora_12_42",
-      "thai_name": "ขางพารา",
+      "thai_name": "ยางพารา",
       "common_name": "Para rubber",
       "scientific_name": "Hevea brasiliensis Muell. Arg.",
       "category": "wild",
@@ -3229,7 +3229,7 @@
     },
     {
       "code": "supplemental_007",
-      "thai_name": "มะม่วงหาวมะนาวโห",
+      "thai_name": "มะม่วงหาวมะนาวโห่",
       "common_name": "",
       "scientific_name": "",
       "category": "other",
@@ -3243,7 +3243,7 @@
     },
     {
       "code": "supplemental_008",
-      "thai_name": "มะดูมแขก",
+      "thai_name": "มะตูมแขก",
       "common_name": "",
       "scientific_name": "",
       "category": "other",
@@ -4083,7 +4083,7 @@
     },
     {
       "code": "supplemental_088",
-      "thai_name": "เข็มปิตตาเวีย",
+      "thai_name": "เข็มปัตตาเวีย",
       "common_name": "",
       "scientific_name": "",
       "category": "other",
@@ -4531,7 +4531,7 @@
     },
     {
       "code": "supplemental_126",
-      "thai_name": "ช่วนชม",
+      "thai_name": "ชวนชม",
       "common_name": "",
       "scientific_name": "",
       "category": "other",
@@ -4839,7 +4839,7 @@
     },
     {
       "code": "supplemental_149",
-      "thai_name": "บุหงาส่าหรื",
+      "thai_name": "บุหงาส่าหรี",
       "common_name": "",
       "scientific_name": "",
       "category": "other",
