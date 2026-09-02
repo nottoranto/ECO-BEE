@@ -42,6 +42,11 @@ class BackendTests(unittest.TestCase):
         self.assertTrue(all(row["status"]=="approved" for row in rows))
         self.assertIn("ยอดขวัญชันโรง",names)
 
+    def test_phase2_field_schema_is_additive(self):
+        with server.connect() as db:
+            tables={row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        self.assertTrue({"plots","plot_crops","crop_observations","tree_count_jobs"}.issubset(tables))
+
     def test_mobile_forms_protect_passwords_and_avoid_input_zoom(self):
         root=Path(__file__).resolve().parent
         farmer=(root/"farmer/index.html").read_text()

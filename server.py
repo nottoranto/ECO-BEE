@@ -240,6 +240,7 @@ def init_db():
                 "note":"TEXT NOT NULL DEFAULT ''"
             }.items():
                 if name not in plant_columns:db.execute(f"ALTER TABLE plants ADD COLUMN {name} {definition}")
+        ensure_phase2_schema(db)
         admin_password = os.environ.get("ECOBEE_ADMIN_PASSWORD", "")
         if os.environ.get("ECOBEE_ENV") == "production" and len(admin_password) < 12:
             raise RuntimeError("ECOBEE_ADMIN_PASSWORD must contain at least 12 characters in production")
@@ -282,6 +283,36 @@ def init_db():
         db.execute("DELETE FROM kv_store WHERE scope='private' AND key IN ('session','orgSession')")
         db.execute("DELETE FROM sessions WHERE expires_at<=?",(now_ms(),))
         db.execute("DELETE FROM org_sessions WHERE expires_at<=?",(now_ms(),))
+
+
+def ensure_phase2_schema(db):
+    """Create additive Phase 2 tables without changing or deleting legacy field data."""
+    db.executescript("""
+    CREATE TABLE IF NOT EXISTS plots (
+      id text PRIMARY KEY, plot_code text UNIQUE NOT NULL, user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name text NOT NULL, geometry text NOT NULL, area_rai double precision, visibility text NOT NULL DEFAULT 'private',
+      created_at bigint NOT NULL, updated_at bigint NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS plot_crops (
+      id text PRIMARY KEY, plot_id text NOT NULL REFERENCES plots(id) ON DELETE CASCADE,
+      plant_code text NOT NULL REFERENCES plant_species(code), variety text NOT NULL DEFAULT '', tree_count integer,
+      planted_at bigint, spacing_m double precision, source text NOT NULL DEFAULT 'farmer', created_at bigint NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS crop_observations (
+      id text PRIMARY KEY, plot_crop_id text NOT NULL REFERENCES plot_crops(id) ON DELETE CASCADE,
+      observed_at bigint NOT NULL, growth_stage text NOT NULL DEFAULT 'unknown', bloom_status text NOT NULL DEFAULT 'unknown',
+      bloom_percent double precision, health_status text NOT NULL DEFAULT 'unknown', pesticide_use text NOT NULL DEFAULT 'unknown',
+      note text NOT NULL DEFAULT '', photo_url text NOT NULL DEFAULT '', created_by bigint NOT NULL REFERENCES users(id)
+    );
+    CREATE TABLE IF NOT EXISTS tree_count_jobs (
+      id text PRIMARY KEY, plot_id text NOT NULL REFERENCES plots(id) ON DELETE CASCADE, status text NOT NULL DEFAULT 'pending',
+      image_url text NOT NULL DEFAULT '', estimated_count integer, confirmed_count integer, confidence double precision,
+      model_version text NOT NULL DEFAULT '', created_at bigint NOT NULL, reviewed_at bigint
+    );
+    CREATE INDEX IF NOT EXISTS plots_user_id_idx ON plots(user_id);
+    CREATE INDEX IF NOT EXISTS plot_crops_plot_id_idx ON plot_crops(plot_id);
+    CREATE INDEX IF NOT EXISTS crop_observations_crop_idx ON crop_observations(plot_crop_id,observed_at);
+    """)
 
 
 def seed_research_data(db):
