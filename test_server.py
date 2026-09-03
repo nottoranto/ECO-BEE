@@ -76,6 +76,14 @@ class BackendTests(unittest.TestCase):
         self.assertIn("escapeHtml(plant.icon||'🌿')",farmer)
         self.assertIn("icon:plantIconFor(p.code,p.thai_name)",farmer)
 
+    def test_organization_has_nationwide_registered_garden_view(self):
+        organization=(Path(__file__).resolve().parent/"organization/index.html").read_text()
+        self.assertIn('id="national-view"',organization)
+        self.assertIn("THAILAND_BOUNDS",organization)
+        self.assertIn("NATIONAL_NETWORK_SITES",organization)
+        self.assertIn("renderRegisteredGardens",organization)
+        self.assertIn("ตำแหน่งอ้างอิงระดับจังหวัด",organization)
+
     def test_plant_form_calculates_plot_area_and_only_asks_tree_count_for_points(self):
         farmer=(Path(__file__).resolve().parent/"farmer/index.html").read_text()
         self.assertIn("พื้นที่คำนวณอัตโนมัติ",farmer)

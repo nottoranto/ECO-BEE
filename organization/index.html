@@ -169,6 +169,8 @@ window.storage=window.storage||{
         <div id="org-search-results" class="hidden absolute top-[54px] inset-x-0 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden max-h-72 overflow-y-auto z-40"></div>
       </div>
       <div class="flex-1"></div>
+      <button id="national-view" class="h-12 rounded-2xl bg-white shadow-md px-4 flex items-center gap-2 text-sm font-semibold text-gray-700 shrink-0"><i class="fa-solid fa-earth-asia text-emerald-500"></i>ทั้งประเทศ</button>
+      <button id="network-toggle" class="h-12 rounded-2xl bg-white shadow-md px-4 flex items-center gap-2 text-sm font-semibold text-gray-700 shrink-0"><i class="fa-solid fa-circle-nodes text-violet-500"></i>จุดเครือข่าย</button>
       <button id="dark-toggle" class="w-12 h-12 rounded-full bg-white shadow-md flex items-center justify-center text-gray-600 shrink-0"><i class="fa-solid fa-moon"></i></button>
     </div>
     <div class="absolute z-20 left-5 top-[80px] flex flex-col rounded-xl overflow-hidden shadow-md bg-white">
@@ -180,6 +182,8 @@ window.storage=window.storage||{
       <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span>ฟาร์มที่กำลังดู</span>
       <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>แหล่งอาหาร/ปลอดภัย</span>
       <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>จุดเสี่ยง</span>
+      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-violet-500"></span>จุดเครือข่ายอ้างอิง</span>
+      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-500 ring-2 ring-white"></span>สวนลงทะเบียน</span>
     </div>
   </div>
 
@@ -210,6 +214,41 @@ const DEFAULT_PLANT_DB={
 let PLANT_CATALOG=Object.assign({},DEFAULT_PLANT_DB);
 
 const LOC_BANKHA=[13.5382,99.4670], LOC_MUEANG=[13.5282,99.8134], LOC_KMUTT_RB=[13.5760,99.3820];
+const THAILAND_BOUNDS=[[5.55,97.25],[20.55,105.65]];
+// จุดระดับจังหวัดถอดจากแผนที่อ้างอิงที่ผู้ใช้ให้มา ไม่ใช่พิกัดสวนรายบุคคล
+const NATIONAL_NETWORK_SITES=[
+  {province:'เชียงใหม่',lat:18.7883,lng:98.9853,network:'มหาวิทยาลัยเชียงใหม่',color:'#ec6bab'},
+  {province:'ลำพูน',lat:18.5745,lng:99.0087,network:'มหาวิทยาลัยเชียงใหม่',color:'#ec6bab'},
+  {province:'ลำปาง',lat:18.2888,lng:99.4909,network:'มหาวิทยาลัยเชียงใหม่',color:'#ec6bab'},
+  {province:'แม่ฮ่องสอน',lat:19.3013,lng:97.9685,network:'มหาวิทยาลัยเชียงใหม่',color:'#ec6bab'},
+  {province:'เชียงราย',lat:19.9105,lng:99.8406,network:'มหาวิทยาลัยเชียงใหม่',color:'#ec6bab'},
+  {province:'อุตรดิตถ์',lat:17.6201,lng:100.0993,network:'มหาวิทยาลัยราชมงคลล้านนา อุตรดิตถ์',color:'#f97316'},
+  {province:'น่าน',lat:18.7756,lng:100.7730,network:'มหาวิทยาลัยราชมงคลล้านนา อุตรดิตถ์',color:'#f97316'},
+  {province:'แพร่',lat:18.1446,lng:100.1403,network:'มหาวิทยาลัยราชมงคลล้านนา อุตรดิตถ์',color:'#f97316'},
+  {province:'พิษณุโลก',lat:16.8211,lng:100.2659,network:'มหาวิทยาลัยราชมงคลล้านนา อุตรดิตถ์',color:'#f97316'},
+  {province:'สุโขทัย',lat:17.0056,lng:99.8264,network:'มหาวิทยาลัยราชมงคลล้านนา อุตรดิตถ์',color:'#f97316'},
+  {province:'ตาก',lat:16.8839,lng:99.1258,network:'มหาวิทยาลัยราชมงคลล้านนา อุตรดิตถ์',color:'#f97316'},
+  {province:'นครพนม',lat:17.3920,lng:104.7696,network:'มหาวิทยาลัยนครพนม',color:'#46ad4c'},
+  {province:'สกลนคร',lat:17.1664,lng:104.1486,network:'มหาวิทยาลัยนครพนม',color:'#46ad4c'},
+  {province:'มุกดาหาร',lat:16.5453,lng:104.7235,network:'มหาวิทยาลัยนครพนม',color:'#46ad4c'},
+  {province:'บึงกาฬ',lat:18.3609,lng:103.6464,network:'มหาวิทยาลัยนครพนม',color:'#46ad4c'},
+  {province:'หนองคาย',lat:17.8783,lng:102.7413,network:'มหาวิทยาลัยนครพนม',color:'#46ad4c'},
+  {province:'อุดรธานี',lat:17.4138,lng:102.7870,network:'มหาวิทยาลัยนครพนม',color:'#46ad4c'},
+  {province:'ร้อยเอ็ด',lat:16.0538,lng:103.6520,network:'มหาวิทยาลัยนครพนม',color:'#46ad4c'},
+  {province:'ขอนแก่น',lat:16.4419,lng:102.8350,network:'กรมส่งเสริมการเกษตร',color:'#dc1f2f'},
+  {province:'อุบลราชธานี',lat:15.2448,lng:104.8473,network:'กรมส่งเสริมการเกษตร',color:'#dc1f2f'},
+  {province:'กาญจนบุรี',lat:14.0228,lng:99.5328,network:'กรมส่งเสริมการเกษตร',color:'#dc1f2f'},
+  {province:'ราชบุรี',lat:13.5283,lng:99.8134,network:'กรมส่งเสริมการเกษตร',color:'#dc1f2f'},
+  {province:'เพชรบุรี',lat:13.1119,lng:99.9447,network:'กรมส่งเสริมการเกษตร',color:'#dc1f2f'},
+  {province:'ประจวบคีรีขันธ์',lat:11.8124,lng:99.7973,network:'กรมส่งเสริมการเกษตร',color:'#dc1f2f'},
+  {province:'ชุมพร',lat:10.4930,lng:99.1800,network:'กรมส่งเสริมการเกษตร',color:'#dc1f2f'},
+  {province:'สุราษฎร์ธานี',lat:9.1382,lng:99.3215,network:'กรมส่งเสริมการเกษตร',color:'#dc1f2f'},
+  {province:'ภูเก็ต',lat:7.8804,lng:98.3923,network:'กรมส่งเสริมการเกษตร',color:'#dc1f2f'},
+  {province:'ตรัง',lat:7.5594,lng:99.6114,network:'กรมส่งเสริมการเกษตร',color:'#dc1f2f'},
+  {province:'สงขลา',lat:7.1898,lng:100.5954,network:'กรมส่งเสริมการเกษตร',color:'#dc1f2f'},
+  {province:'ปัตตานี',lat:6.8695,lng:101.2505,network:'กรมส่งเสริมการเกษตร',color:'#dc1f2f'},
+  {province:'นราธิวาส',lat:6.4255,lng:101.8253,network:'กรมส่งเสริมการเกษตร',color:'#dc1f2f'}
+];
 
 /* ================= UTIL ================= */
 function uid(){ return 'id_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
@@ -323,6 +362,8 @@ function initMap(){
   document.getElementById('dark-toggle').addEventListener('click',function(){ if(isDark){ map.removeLayer(darkLayer); satelliteLayer.addTo(map); this.innerHTML='<i class="fa-solid fa-moon"></i>'; } else { map.removeLayer(satelliteLayer); darkLayer.addTo(map); this.innerHTML='<i class="fa-solid fa-sun"></i>'; } isDark=!isDark; });
   document.getElementById('org-zoom-in').addEventListener('click',function(){ map.zoomIn(); });
   document.getElementById('org-zoom-out').addEventListener('click',function(){ map.zoomOut(); });
+  document.getElementById('national-view').addEventListener('click',function(){ map.fitBounds(THAILAND_BOUNDS,{padding:[24,24]});showToast('info','มุมมองทั้งประเทศ','แสดงสวนที่ลงทะเบียนและจุดเครือข่ายอ้างอิง'); });
+  document.getElementById('network-toggle').addEventListener('click',function(){ nationalSitesVisible=!nationalSitesVisible;renderNationalSites();this.classList.toggle('opacity-50',!nationalSitesVisible); });
   map.on('click',onMapClick);
   map.on('contextmenu',function(){ if((mode==='drawPlantArea'||mode==='drawDanger')&&drawVertices.length){ drawVertices.pop(); updateDrawPreview(); } });
   map.on('moveend',function(){ if(activeTab==='flora') renderFloraCalendar(); });
@@ -353,7 +394,8 @@ function confirmDelete(title, msg, onConfirm){
 /* ================= STATE ================= */
 let parkHives=[], plants=[], zones=[], accounts=[], admins=[];
 let hivesVisible=true;
-let hiveRefs=[], plantRefs=[], zoneRefs=[], searchIndex={};
+let hiveRefs=[], plantRefs=[], zoneRefs=[], nationalSiteRefs=[], registeredGardenRefs=[], searchIndex={};
+let nationalSitesVisible=true;
 let hiveById={}, plantById={}, zoneById={};
 
 async function enterOrg(){
@@ -420,7 +462,25 @@ function renderZones(){
     zoneRefs.push(poly); zoneById[z.id]=poly;
   });
 }
-function renderAllLayers(){ renderHives(); renderPlants(); renderZones(); buildSearchIndex(); }
+function renderNationalSites(){
+  clearRefs(nationalSiteRefs);if(!nationalSitesVisible)return;
+  NATIONAL_NETWORK_SITES.forEach(function(site){
+    const marker=L.circleMarker([site.lat,site.lng],{radius:7,color:'#fff',weight:2,fillColor:site.color,fillOpacity:.95}).addTo(map);
+    marker.bindPopup('<div class="popup-title">จุดเครือข่าย · '+escapeHtml(site.province)+'</div><div class="popup-row"><span>เครือข่าย</span><b>'+escapeHtml(site.network)+'</b></div><p style="font-size:10px;color:#64748b;margin-top:8px">ตำแหน่งอ้างอิงระดับจังหวัดจากแผนที่ ไม่ใช่พิกัดสวนรายบุคคล</p>');
+    nationalSiteRefs.push(marker);
+  });
+}
+function renderRegisteredGardens(){
+  clearRefs(registeredGardenRefs);const grouped={};
+  function add(phone,name,lat,lng){if(!phone)return;grouped[phone]=grouped[phone]||{name:name||'สวนลงทะเบียน',points:[]};grouped[phone].points.push([lat,lng]);}
+  parkHives.forEach(function(h){add(h.ownerPhone,h.ownerName,h.lat,h.lng);});
+  plants.forEach(function(p){const pt=p.geom.type==='point'?p.geom.coords:centroid(p.geom.coords);add(p.ownerPhone,p.ownerName,pt[0],pt[1]);});
+  Object.keys(grouped).forEach(function(key){const garden=grouped[key],lat=garden.points.reduce(function(s,p){return s+p[0];},0)/garden.points.length,lng=garden.points.reduce(function(s,p){return s+p[1];},0)/garden.points.length;
+    const marker=L.circleMarker([lat,lng],{radius:9,color:'#fff',weight:3,fillColor:'#0284c7',fillOpacity:1}).addTo(map);
+    marker.bindPopup('<div class="popup-title">สวนลงทะเบียน</div><div class="popup-row"><span>ผู้ลงทะเบียน</span><b>'+escapeHtml(garden.name)+'</b></div><div class="popup-row"><span>ข้อมูลในระบบ</span><b>'+garden.points.length+' รายการ</b></div>');registeredGardenRefs.push(marker);
+  });
+}
+function renderAllLayers(){ renderHives(); renderPlants(); renderZones(); renderNationalSites(); renderRegisteredGardens(); buildSearchIndex(); }
 function buildSearchIndex(){ searchIndex={}; parkHives.forEach(function(h){ if(h.name) searchIndex[h.name.toLowerCase()]={lat:h.lat,lng:h.lng,label:h.name,type:'รังสาธิต'}; }); zones.forEach(function(z){ if(z.name){ const c=centroid(z.geom.coords); searchIndex[z.name.toLowerCase()]={lat:c[0],lng:c[1],label:z.name,type:z.status==='danger'?'จุดเสี่ยง':'พื้นที่ปลอดภัย'}; } }); }
 
 /* ================= DELETE ACTIONS ================= */
