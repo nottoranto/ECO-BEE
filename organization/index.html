@@ -26,6 +26,9 @@ window.storage=window.storage||{
   .font-display{font-family:'Kanit',sans-serif;} button{cursor:pointer;}
   #root{position:relative;width:100vw;height:100vh;overflow:hidden;}
   #org-map{position:absolute;inset:0;background:#e5e7eb;}
+  /* Leaflet creates internal panes at z-index 200–700. The map toolbar,
+     zoom buttons and legend must sit above those panes to remain visible. */
+  #map-area>.map-overlay{z-index:1100;}
   .map-crosshair .leaflet-container{cursor:crosshair !important;}
   .leaflet-popup-content-wrapper{border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.18);font-family:'Prompt',sans-serif;}
   .leaflet-popup-content{margin:14px 16px;font-size:13px;}
@@ -162,7 +165,7 @@ window.storage=window.storage||{
 
   <div id="map-area" class="flex-1 relative h-full">
     <div id="org-map"></div>
-    <div class="absolute z-30 top-5 left-5 right-5 flex items-center gap-3">
+    <div class="map-overlay absolute z-30 top-5 left-5 right-5 flex items-center gap-3">
       <div class="relative flex-1 max-w-xl">
         <input id="org-search" type="search" autocomplete="off" placeholder="ค้นหาพื้นที่ / รังผึ้ง / ชนิดพืช..." class="w-full h-12 rounded-2xl bg-white shadow-md pl-11 pr-4 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400">
         <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
@@ -173,11 +176,11 @@ window.storage=window.storage||{
       <button id="network-toggle" class="h-12 rounded-2xl bg-white shadow-md px-4 flex items-center gap-2 text-sm font-semibold text-gray-700 shrink-0"><i class="fa-solid fa-circle-nodes text-violet-500"></i>จุดเครือข่าย</button>
       <button id="dark-toggle" class="w-12 h-12 rounded-full bg-white shadow-md flex items-center justify-center text-gray-600 shrink-0"><i class="fa-solid fa-moon"></i></button>
     </div>
-    <div class="absolute z-20 left-5 top-[80px] flex flex-col rounded-xl overflow-hidden shadow-md bg-white">
+    <div class="map-overlay absolute z-20 left-5 top-[80px] flex flex-col rounded-xl overflow-hidden shadow-md bg-white">
       <button id="org-zoom-in" class="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-50 border-b border-gray-100"><i class="fa-solid fa-plus"></i></button>
       <button id="org-zoom-out" class="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-50"><i class="fa-solid fa-minus"></i></button>
     </div>
-    <div class="absolute z-20 left-5 bottom-5 flex items-center gap-4 text-xs text-gray-500 bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-md">
+    <div class="map-overlay absolute z-20 left-5 bottom-5 flex items-center gap-4 text-xs text-gray-500 bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-md">
       <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>รังในระบบ</span>
       <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span>ฟาร์มที่กำลังดู</span>
       <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>แหล่งอาหาร/ปลอดภัย</span>
