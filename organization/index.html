@@ -181,11 +181,7 @@ window.storage=window.storage||{
       <button id="org-zoom-out" class="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-50"><i class="fa-solid fa-minus"></i></button>
     </div>
     <div class="map-overlay absolute z-20 left-5 bottom-5 flex items-center gap-4 text-xs text-gray-500 bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-md">
-      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>รังในระบบ</span>
-      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span>ฟาร์มที่กำลังดู</span>
-      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>แหล่งอาหาร/ปลอดภัย</span>
-      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>จุดเสี่ยง</span>
-      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-green-500 ring-2 ring-white"></span>จุดจากแผนที่อ้างอิง</span>
+      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-green-500 ring-2 ring-white"></span>จุดเครือข่าย</span>
       <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-500 ring-2 ring-white"></span>สวนเกษตรกรที่ลงทะเบียนแล้ว</span>
     </div>
   </div>
@@ -367,7 +363,7 @@ function initMap(){
   document.getElementById('dark-toggle').addEventListener('click',function(){ if(isDark){ map.removeLayer(darkLayer); satelliteLayer.addTo(map); this.innerHTML='<i class="fa-solid fa-moon"></i>'; } else { map.removeLayer(satelliteLayer); darkLayer.addTo(map); this.innerHTML='<i class="fa-solid fa-sun"></i>'; } isDark=!isDark; });
   document.getElementById('org-zoom-in').addEventListener('click',function(){ map.zoomIn(); });
   document.getElementById('org-zoom-out').addEventListener('click',function(){ map.zoomOut(); });
-  document.getElementById('national-view').addEventListener('click',function(){ map.fitBounds(THAILAND_BOUNDS,{padding:[24,24]});showToast('info','มุมมองทั้งประเทศ','แสดงสวนที่ลงทะเบียนและจุดเครือข่ายอ้างอิง'); });
+  document.getElementById('national-view').addEventListener('click',function(){ map.fitBounds(THAILAND_BOUNDS,{padding:[24,24]});showToast('info','มุมมองทั้งประเทศ','แสดงสวนที่ลงทะเบียนและจุดเครือข่าย'); });
   document.getElementById('network-toggle').addEventListener('click',function(){ nationalSitesVisible=!nationalSitesVisible;renderNationalSites();this.classList.toggle('opacity-50',!nationalSitesVisible); });
   map.on('click',onMapClick);
   map.on('contextmenu',function(){ if((mode==='drawPlantArea'||mode==='drawDanger')&&drawVertices.length){ drawVertices.pop(); updateDrawPreview(); } });
@@ -471,7 +467,7 @@ function renderNationalSites(){
   clearRefs(nationalSiteRefs);if(!nationalSitesVisible)return;
   NATIONAL_NETWORK_SITES.forEach(function(site){
     const marker=L.circleMarker([site.lat,site.lng],{radius:7,color:'#fff',weight:2,fillColor:REFERENCE_SITE_COLOR,fillOpacity:.95}).addTo(map);
-    marker.bindPopup('<div class="popup-title">จุดเครือข่าย · '+escapeHtml(site.province)+'</div><div class="popup-row"><span>เครือข่าย</span><b>'+escapeHtml(site.network)+'</b></div><p style="font-size:10px;color:#64748b;margin-top:8px">ตำแหน่งอ้างอิงระดับจังหวัดจากแผนที่ ไม่ใช่พิกัดสวนรายบุคคล</p>');
+    marker.bindPopup('<div class="popup-title">จุดเครือข่าย · '+escapeHtml(site.province)+'</div><div class="popup-row"><span>เครือข่าย</span><b>'+escapeHtml(site.network)+'</b></div><p style="font-size:10px;color:#64748b;margin-top:8px">ตำแหน่งระดับจังหวัด ไม่ใช่พิกัดสวนรายบุคคล</p>');
     nationalSiteRefs.push(marker);
   });
 }

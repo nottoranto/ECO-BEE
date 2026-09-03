@@ -82,10 +82,11 @@ class BackendTests(unittest.TestCase):
         self.assertIn("THAILAND_BOUNDS",organization)
         self.assertIn("NATIONAL_NETWORK_SITES",organization)
         self.assertIn("renderRegisteredGardens",organization)
-        self.assertIn("ตำแหน่งอ้างอิงระดับจังหวัด",organization)
+        self.assertIn("ตำแหน่งระดับจังหวัด",organization)
         self.assertIn("#map-area>.map-overlay{z-index:1100;}",organization)
         self.assertIn("REFERENCE_SITE_COLOR='#22c55e'",organization)
         self.assertIn("REGISTERED_GARDEN_COLOR='#0284c7'",organization)
+        self.assertIn("จุดเครือข่าย</span>",organization)
 
     def test_plant_form_calculates_plot_area_and_only_asks_tree_count_for_points(self):
         farmer=(Path(__file__).resolve().parent/"farmer/index.html").read_text()
