@@ -185,8 +185,8 @@ window.storage=window.storage||{
       <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span>ฟาร์มที่กำลังดู</span>
       <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>แหล่งอาหาร/ปลอดภัย</span>
       <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>จุดเสี่ยง</span>
-      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-violet-500"></span>จุดเครือข่ายอ้างอิง</span>
-      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-500 ring-2 ring-white"></span>สวนลงทะเบียน</span>
+      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-green-500 ring-2 ring-white"></span>จุดจากแผนที่อ้างอิง</span>
+      <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-500 ring-2 ring-white"></span>สวนเกษตรกรที่ลงทะเบียนแล้ว</span>
     </div>
   </div>
 
@@ -218,6 +218,8 @@ let PLANT_CATALOG=Object.assign({},DEFAULT_PLANT_DB);
 
 const LOC_BANKHA=[13.5382,99.4670], LOC_MUEANG=[13.5282,99.8134], LOC_KMUTT_RB=[13.5760,99.3820];
 const THAILAND_BOUNDS=[[5.55,97.25],[20.55,105.65]];
+const REFERENCE_SITE_COLOR='#22c55e';
+const REGISTERED_GARDEN_COLOR='#0284c7';
 // จุดระดับจังหวัดถอดจากแผนที่อ้างอิงที่ผู้ใช้ให้มา ไม่ใช่พิกัดสวนรายบุคคล
 const NATIONAL_NETWORK_SITES=[
   {province:'เชียงใหม่',lat:18.7883,lng:98.9853,network:'มหาวิทยาลัยเชียงใหม่',color:'#ec6bab'},
@@ -468,7 +470,7 @@ function renderZones(){
 function renderNationalSites(){
   clearRefs(nationalSiteRefs);if(!nationalSitesVisible)return;
   NATIONAL_NETWORK_SITES.forEach(function(site){
-    const marker=L.circleMarker([site.lat,site.lng],{radius:7,color:'#fff',weight:2,fillColor:site.color,fillOpacity:.95}).addTo(map);
+    const marker=L.circleMarker([site.lat,site.lng],{radius:7,color:'#fff',weight:2,fillColor:REFERENCE_SITE_COLOR,fillOpacity:.95}).addTo(map);
     marker.bindPopup('<div class="popup-title">จุดเครือข่าย · '+escapeHtml(site.province)+'</div><div class="popup-row"><span>เครือข่าย</span><b>'+escapeHtml(site.network)+'</b></div><p style="font-size:10px;color:#64748b;margin-top:8px">ตำแหน่งอ้างอิงระดับจังหวัดจากแผนที่ ไม่ใช่พิกัดสวนรายบุคคล</p>');
     nationalSiteRefs.push(marker);
   });
@@ -479,7 +481,7 @@ function renderRegisteredGardens(){
   parkHives.forEach(function(h){add(h.ownerPhone,h.ownerName,h.lat,h.lng);});
   plants.forEach(function(p){const pt=p.geom.type==='point'?p.geom.coords:centroid(p.geom.coords);add(p.ownerPhone,p.ownerName,pt[0],pt[1]);});
   Object.keys(grouped).forEach(function(key){const garden=grouped[key],lat=garden.points.reduce(function(s,p){return s+p[0];},0)/garden.points.length,lng=garden.points.reduce(function(s,p){return s+p[1];},0)/garden.points.length;
-    const marker=L.circleMarker([lat,lng],{radius:9,color:'#fff',weight:3,fillColor:'#0284c7',fillOpacity:1}).addTo(map);
+    const marker=L.circleMarker([lat,lng],{radius:9,color:'#fff',weight:3,fillColor:REGISTERED_GARDEN_COLOR,fillOpacity:1}).addTo(map);
     marker.bindPopup('<div class="popup-title">สวนลงทะเบียน</div><div class="popup-row"><span>ผู้ลงทะเบียน</span><b>'+escapeHtml(garden.name)+'</b></div><div class="popup-row"><span>ข้อมูลในระบบ</span><b>'+garden.points.length+' รายการ</b></div>');registeredGardenRefs.push(marker);
   });
 }
